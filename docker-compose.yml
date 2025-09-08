@@ -1,0 +1,311 @@
+version: '3.8'
+services:
+  node_builder:
+    build: .
+    image: go-node:latest
+    command:
+    - '8001'
+    ports:
+    - 8001:8001/udp
+    deploy:
+      replicas: 0
+  node_0:
+    image: go-node:latest
+    command:
+    - '8001'
+    ports:
+    - 8001:8001/udp
+  node_1:
+    image: go-node:latest
+    command:
+    - '8002'
+    ports:
+    - 8002:8002/udp
+  node_2:
+    image: go-node:latest
+    command:
+    - '8003'
+    ports:
+    - 8003:8003/udp
+  node_3:
+    image: go-node:latest
+    command:
+    - '8004'
+    ports:
+    - 8004:8004/udp
+  node_4:
+    image: go-node:latest
+    command:
+    - '8005'
+    ports:
+    - 8005:8005/udp
+  node_5:
+    image: go-node:latest
+    command:
+    - '8006'
+    ports:
+    - 8006:8006/udp
+  node_6:
+    image: go-node:latest
+    command:
+    - '8007'
+    ports:
+    - 8007:8007/udp
+  node_7:
+    image: go-node:latest
+    command:
+    - '8008'
+    ports:
+    - 8008:8008/udp
+  node_8:
+    image: go-node:latest
+    command:
+    - '8009'
+    ports:
+    - 8009:8009/udp
+  node_9:
+    image: go-node:latest
+    command:
+    - '8010'
+    ports:
+    - 8010:8010/udp
+  node_10:
+    image: go-node:latest
+    command:
+    - '8011'
+    ports:
+    - 8011:8011/udp
+  node_11:
+    image: go-node:latest
+    command:
+    - '8012'
+    ports:
+    - 8012:8012/udp
+  node_12:
+    image: go-node:latest
+    command:
+    - '8013'
+    ports:
+    - 8013:8013/udp
+  node_13:
+    image: go-node:latest
+    command:
+    - '8014'
+    ports:
+    - 8014:8014/udp
+  node_14:
+    image: go-node:latest
+    command:
+    - '8015'
+    ports:
+    - 8015:8015/udp
+  node_15:
+    image: go-node:latest
+    command:
+    - '8016'
+    ports:
+    - 8016:8016/udp
+  node_16:
+    image: go-node:latest
+    command:
+    - '8017'
+    ports:
+    - 8017:8017/udp
+  node_17:
+    image: go-node:latest
+    command:
+    - '8018'
+    ports:
+    - 8018:8018/udp
+  node_18:
+    image: go-node:latest
+    command:
+    - '8019'
+    ports:
+    - 8019:8019/udp
+  node_19:
+    image: go-node:latest
+    command:
+    - '8020'
+    ports:
+    - 8020:8020/udp
+  node_20:
+    image: go-node:latest
+    command:
+    - '8021'
+    ports:
+    - 8021:8021/udp
+  node_21:
+    image: go-node:latest
+    command:
+    - '8022'
+    ports:
+    - 8022:8022/udp
+  node_22:
+    image: go-node:latest
+    command:
+    - '8023'
+    ports:
+    - 8023:8023/udp
+  node_23:
+    image: go-node:latest
+    command:
+    - '8024'
+    ports:
+    - 8024:8024/udp
+  node_24:
+    image: go-node:latest
+    command:
+    - '8025'
+    ports:
+    - 8025:8025/udp
+  node_25:
+    image: go-node:latest
+    command:
+    - '8026'
+    ports:
+    - 8026:8026/udp
+  node_26:
+    image: go-node:latest
+    command:
+    - '8027'
+    ports:
+    - 8027:8027/udp
+  node_27:
+    image: go-node:latest
+    command:
+    - '8028'
+    ports:
+    - 8028:8028/udp
+  node_28:
+    image: go-node:latest
+    command:
+    - '8029'
+    ports:
+    - 8029:8029/udp
+  node_29:
+    image: go-node:latest
+    command:
+    - '8030'
+    ports:
+    - 8030:8030/udp
+  node_30:
+    image: go-node:latest
+    command:
+    - '8031'
+    ports:
+    - 8031:8031/udp
+  node_31:
+    image: go-node:latest
+    command:
+    - '8032'
+    ports:
+    - 8032:8032/udp
+  node_32:
+    image: go-node:latest
+    command:
+    - '8033'
+    ports:
+    - 8033:8033/udp
+  node_33:
+    image: go-node:latest
+    command:
+    - '8034'
+    ports:
+    - 8034:8034/udp
+  node_34:
+    image: go-node:latest
+    command:
+    - '8035'
+    ports:
+    - 8035:8035/udp
+  node_35:
+    image: go-node:latest
+    command:
+    - '8036'
+    ports:
+    - 8036:8036/udp
+  node_36:
+    image: go-node:latest
+    command:
+    - '8037'
+    ports:
+    - 8037:8037/udp
+  node_37:
+    image: go-node:latest
+    command:
+    - '8038'
+    ports:
+    - 8038:8038/udp
+  node_38:
+    image: go-node:latest
+    command:
+    - '8039'
+    ports:
+    - 8039:8039/udp
+  node_39:
+    image: go-node:latest
+    command:
+    - '8040'
+    ports:
+    - 8040:8040/udp
+  node_40:
+    image: go-node:latest
+    command:
+    - '8041'
+    ports:
+    - 8041:8041/udp
+  node_41:
+    image: go-node:latest
+    command:
+    - '8042'
+    ports:
+    - 8042:8042/udp
+  node_42:
+    image: go-node:latest
+    command:
+    - '8043'
+    ports:
+    - 8043:8043/udp
+  node_43:
+    image: go-node:latest
+    command:
+    - '8044'
+    ports:
+    - 8044:8044/udp
+  node_44:
+    image: go-node:latest
+    command:
+    - '8045'
+    ports:
+    - 8045:8045/udp
+  node_45:
+    image: go-node:latest
+    command:
+    - '8046'
+    ports:
+    - 8046:8046/udp
+  node_46:
+    image: go-node:latest
+    command:
+    - '8047'
+    ports:
+    - 8047:8047/udp
+  node_47:
+    image: go-node:latest
+    command:
+    - '8048'
+    ports:
+    - 8048:8048/udp
+  node_48:
+    image: go-node:latest
+    command:
+    - '8049'
+    ports:
+    - 8049:8049/udp
+  node_49:
+    image: go-node:latest
+    command:
+    - '8050'
+    ports:
+    - 8050:8050/udp
