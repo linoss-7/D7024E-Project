@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ncyborgse/go-template/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/network"
 )
 
 func TestGossipProtocol(t *testing.T) {

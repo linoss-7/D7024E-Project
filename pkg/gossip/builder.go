@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncyborgse/go-template/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/network"
 )
 
 // NetworkBuilder helps create a network of gossip nodes with random topology

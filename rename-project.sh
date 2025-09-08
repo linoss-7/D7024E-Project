@@ -12,13 +12,13 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-OLD_NAME="go-template"
+OLD_NAME="linoss-7/D7024E-Project"
 NEW_NAME="$1"
 
-OLD_MODULE="github.com/eislab-cps/go-template"
+OLD_MODULE="github.com/linoss-7/D7024E-Project"
 NEW_MODULE="github.com/$NEW_NAME"
 
-OLD_PREFIX="github.com/eislab-cps/"
+OLD_PREFIX="github.com/"
 NEW_PREFIX="github.com/"
 
 echo "====================================="
@@ -38,7 +38,7 @@ else
     }
 fi
 
-# Step 1: Replace go-template in file contents
+# Step 1: Replace linoss-7/D7024E-Project in file contents
 echo "Step 1: Updating file contents (project name)..."
 grep -rl "$OLD_NAME" . \
     --exclude-dir={.git,.github,vendor} \
@@ -58,7 +58,7 @@ grep -rl "$OLD_MODULE" . \
         SED_INPLACE "s#$OLD_MODULE#$NEW_MODULE#g" "$file"
     done
 
-# Step 2b: Remove old prefix github.com/eislab-cps/
+# Step 2b: Remove old prefix github.com/
 echo "Step 2b: Removing old prefix in import paths..."
 grep -rl "$OLD_PREFIX" . \
     --exclude-dir={.git,.github,vendor} \

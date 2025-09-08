@@ -1,11 +1,11 @@
 package node
 
 import (
-	"github.com/linoss-7/D7024E-Project/pkg/network"
-
 	"fmt"
 	"log"
 	"sync"
+
+	"github.com/linoss-7/D7024E-Project/pkg/network"
 )
 
 // Node provides a unified abstraction for both sending and receiving messages
@@ -51,6 +51,7 @@ func (n *Node) Start() {
 			n.closeMu.RLock()
 			if n.closed {
 				n.closeMu.RUnlock()
+				log.Print("Node ", n.addr.String(), " is closed, stopping listener")
 				return
 			}
 			n.closeMu.RUnlock()
@@ -85,6 +86,7 @@ func (n *Node) Start() {
 			n.mu.RUnlock()
 
 			if exists && handler != nil {
+				log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
 				if err := handler(msg); err != nil {
 					log.Printf("Handler error: %v", err)
 				}
