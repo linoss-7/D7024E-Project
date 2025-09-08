@@ -10,7 +10,8 @@ services["node_builder"] = {
     "build": ".",
     "image": IMAGE_NAME,
     "command": ["start_node", str(BASE_PORT)],
-    "ports": [f"{BASE_PORT}:{BASE_PORT}/udp"],
+    "networks": ["nodes_net"],
+    #"ports": [f"{BASE_PORT}:{BASE_PORT}/udp"],
     "deploy": {"replicas": 0}  # Prevents running this builder service
 }
 
@@ -20,11 +21,17 @@ for i in range(NUM_NODES):
     services[name] = {
         "image": IMAGE_NAME,
         "command": ["start_node", str(port)],
-        "ports": [f"{port}:{port}/udp"]
+        "networks": ["nodes_net"],
+        #"ports": [f"{port}:{port}/udp"]
     }
 
 compose = {
-    "services": services
+    "services": services,
+    "networks": {
+        "nodes_net": {
+            "driver": "bridge"
+        }
+    }
 }
 
 with open("docker-compose.yml", "w") as f:

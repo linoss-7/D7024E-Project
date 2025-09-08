@@ -8,6 +8,5 @@ FROM alpine:latest
 WORKDIR /
 
 COPY --from=builder /start_node .
-EXPOSE 8000/udp
 ENTRYPOINT ["./start_node"]
 

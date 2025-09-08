@@ -43,13 +43,11 @@ func (n *udpNetwork) Listen(addr Address) (Connection, error) {
 func (n *udpNetwork) Dial(addr Address) (Connection, error) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	/*
-		if _, exists := n.listeners[addr]; !exists {
-			return nil, errors.New("address not found")
-		}
-	*/
-	address := &net.UDPAddr{IP: net.ParseIP(addr.IP), Port: addr.Port}
-	soc, err := net.DialUDP("udp", nil, address)
+	raddr, err := net.ResolveUDPAddr(("udp"), addr.String())
+	if err != nil {
+		return nil, errors.New("Error resolving address:" + err.Error())
+	}
+	soc, err := net.DialUDP("udp", nil, raddr)
 	if err != nil {
 		return nil, errors.New("Error creating UDP socket:" + err.Error())
 	}
