@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"time"
 
@@ -41,9 +42,10 @@ var StartNodeCmd = &cobra.Command{
 			return nil
 		})
 
+		waitSeconds := rand.Intn(21) + 10 // random int between 10 and 30
 		newNode.Start()
-		// Wait for 30 seconds, then send a message to next node (if any)
-		time.AfterFunc(30*time.Second, func() {
+		// Wait for random seconds, then send a message to next node (if any)
+		time.AfterFunc(time.Duration(waitSeconds)*time.Second, func() {
 			if iport < 8049 {
 				nextAddr := network.Address{
 					IP:   fmt.Sprintf("node_%d", (iport-8001)+1), // Adjust index as needed

@@ -122,9 +122,7 @@ func (c *udpConnection) listen() {
 		if c.closed {
 			return
 		}
-		log.Printf("Listening for messages at %s\n", c.addr.String())
 		n, addr, err := c.soc.ReadFromUDP(buf)
-		log.Printf("Read %d bytes from %s\n", n, addr.String())
 		if err != nil {
 			log.Printf("Error reading from UDP socket: %v", err)
 			continue
@@ -143,7 +141,6 @@ func (c *udpConnection) listen() {
 		if ch != nil {
 			select {
 			case ch <- msg:
-				log.Printf("Message received at %s from %s: %s", c.addr.String(), msg.From.String(), string(msg.Payload))
 			default:
 				// Drop message to prevent stalling
 			}
