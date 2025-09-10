@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/ncyborgse/go-template/internal/cli"
-	"github.com/ncyborgse/go-template/pkg/build"
+	"github.com/linoss-7/D7024E-Project/internal/cli"
+	"github.com/linoss-7/D7024E-Project/pkg/build"
 )
 
 var (

@@ -16,9 +16,9 @@ func init() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "helloworld",
-	Short: "helloworld",
-	Long:  "helloworld",
+	Use:   "root",
+	Short: "root command",
+	Long:  "This is the root command",
 }
 
 func Execute() {

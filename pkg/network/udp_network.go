@@ -2,6 +2,8 @@ package network
 
 import (
 	"errors"
+	"log"
+	"net"
 	"sync"
 )
 
@@ -12,7 +14,7 @@ type udpNetwork struct {
 }
 
 func NewUDPNetwork() Network {
-	return &mockNetwork{
+	return &udpNetwork{
 		listeners:  make(map[Address]chan Message),
 		partitions: make(map[Address]bool),
 	}
@@ -24,18 +26,33 @@ func (n *udpNetwork) Listen(addr Address) (Connection, error) {
 	if _, exists := n.listeners[addr]; exists {
 		return nil, errors.New("address already in use")
 	}
+
+	// Create a UDP socket
+	address := &net.UDPAddr{IP: net.ParseIP(addr.IP), Port: addr.Port}
+	soc, err := net.ListenUDP("udp", address)
+	if err != nil {
+		return nil, errors.New("Error creating UDP socket:" + err.Error())
+	}
 	ch := make(chan Message, 100) // buffered channel
 	n.listeners[addr] = ch
-	return &udpConnection{addr: addr, network: n, recvCh: ch}, nil
+	conn := &udpConnection{addr: addr, network: n, soc: soc, recvCh: ch}
+	go conn.listen()
+	return conn, nil
 }
 
 func (n *udpNetwork) Dial(addr Address) (Connection, error) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	if _, exists := n.listeners[addr]; !exists {
-		return nil, errors.New("address not found")
+	raddr, err := net.ResolveUDPAddr(("udp"), addr.String())
+	if err != nil {
+		return nil, errors.New("Error resolving address:" + err.Error())
 	}
-	return &udpConnection{addr: addr, network: n}, nil
+	soc, err := net.DialUDP("udp", nil, raddr)
+	if err != nil {
+		return nil, errors.New("Error creating UDP socket:" + err.Error())
+	}
+
+	return &udpConnection{addr: addr, network: n, soc: soc}, nil
 }
 
 func (n *udpNetwork) Partition(group1, group2 []Address) {
@@ -61,33 +78,74 @@ type udpConnection struct {
 	recvCh  chan Message
 	mu      sync.RWMutex
 	closed  bool
+	soc     *net.UDPConn
 }
 
 func (c *udpConnection) Send(msg Message) error {
 	c.network.mu.RLock()
-
-	if c.network.partitions[c.addr] || c.network.partitions[msg.To] {
-		c.network.mu.RUnlock()
-		return errors.New("network partitioned")
-	}
-
-	ch, exists := c.network.listeners[msg.To]
-	if !exists {
-		c.network.mu.RUnlock()
-		return errors.New("destination address not found")
-	}
+	defer c.network.mu.RUnlock()
 
 	// Add network reference to message for replies
 	msg.network = c.network
 
-	// Keep the lock while sending to prevent the channel from being closed
-	select {
-	case ch <- msg:
-		c.network.mu.RUnlock()
-		return nil
-	default:
-		c.network.mu.RUnlock()
-		return errors.New("message queue full")
+	if c.network.partitions[c.addr] || c.network.partitions[msg.To] {
+		return errors.New("network partitioned")
+	}
+
+	udpAddr, err := net.ResolveUDPAddr("udp", msg.To.String())
+
+	if err != nil {
+		return errors.New("Invalid address:" + err.Error())
+	}
+
+	if c.soc.RemoteAddr() != nil {
+		// Pre-connected socket (DialUDP)
+		_, err = c.soc.Write(msg.Payload)
+	} else {
+		// Not connected (ListenUDP)
+		_, err = c.soc.WriteToUDP(msg.Payload, udpAddr)
+	}
+
+	//return errors.New("Sent to udp:" + udpAddr.String())
+
+	if err != nil {
+		return errors.New("Error sending:" + err.Error())
+	}
+
+	return nil
+}
+
+func (c *udpConnection) listen() {
+	buf := make([]byte, 1024)
+	for {
+
+		if c.closed {
+			return
+		}
+		n, addr, err := c.soc.ReadFromUDP(buf)
+		if err != nil {
+			log.Printf("Error reading from UDP socket: %v", err)
+			continue
+		}
+		var msg Message
+		msg.From = Address{IP: addr.IP.String(), Port: addr.Port}
+		msg.To = c.addr
+		msg.Payload = make([]byte, n)
+		copy(msg.Payload, buf[:n])
+		msg.network = c.network
+
+		c.mu.RLock()
+		ch := c.recvCh
+		c.mu.RUnlock()
+
+		if ch != nil {
+			select {
+			case ch <- msg:
+			default:
+				// Drop message to prevent stalling
+			}
+		}
+
 	}
 }
 
@@ -95,14 +153,14 @@ func (c *udpConnection) Recv() (Message, error) {
 	c.mu.RLock()
 	if c.closed || c.recvCh == nil {
 		c.mu.RUnlock()
-		return Message{}, errors.New("connection not listening")
+		return Message{}, errors.New("Connection not listening")
 	}
 	ch := c.recvCh
 	c.mu.RUnlock()
 
 	msg, ok := <-ch
 	if !ok {
-		return Message{}, errors.New("connection closed")
+		return Message{}, errors.New("Connection closed")
 	}
 	return msg, nil
 }

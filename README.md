@@ -124,7 +124,7 @@ To customize the project name, follow these steps:
 1. Create a new Git repo.
 
 2. **Edit `go.mod`** 
-   Change the module path from: `module github.com/eislab-cps/go-template` to your new project path.
+   Change the module path from: `module github.com/linoss-7/D7024E-Project` to your new project path.
 
 3. **Update Import Paths**  
 Modify the import paths in the following files:
@@ -132,23 +132,23 @@ Modify the import paths in the following files:
 - `internal/cli/version.go`  
   Line 6:
   ```go
-  "github.com/eislab-cps/go-template/pkg/build"
+  "github.com/linoss-7/D7024E-Project/pkg/build"
   ```
 
 - `internal/cli/talk.go`  
   Line 4:
   ```go
-  "github.com/eislab-cps/go-template/pkg/helloworld"
+  "github.com/linoss-7/D7024E-Project/pkg/helloworld"
   ```
 
 - `cmd/main.go`  
   Lines 4–5:
   ```go
-  "github.com/eislab-cps/go-template/internal/cli"
-  "github.com/eislab-cps/go-template/pkg/build"
+  "github.com/linoss-7/D7024E-Project/internal/cli"
+  "github.com/linoss-7/D7024E-Project/pkg/build"
   ```
 
-Replace each instance of `github.com/eislab-cps/go-template` with your new module name.
+Replace each instance of `github.com/linoss-7/D7024E-Project` with your new module name.
 
 4. Update Goreleaser
 Change the `binary` name to `helloworld` in the `.goreleaser.yml` file.
@@ -178,10 +178,10 @@ Take a look at these configuration files for CI/CD setup:
 **Note:**  
 The Goreleaser workflow can be used to automatically build and publish binaries on GitHub.  
 Click the **Draft a new release** button to create a new release.  
-Published releases will appear here: [GitHub Releases - go-template](https://github.com/eislab-cps/go-template/releases)
+Published releases will appear here: [GitHub Releases - linoss-7/D7024E-Project](https://github.com/linoss-7/D7024E-Project/releases)
 
 The Docker workflow will automatically build and publish a Docker image on GitHub.  
-See this page: [GitHub Packages - go-template](https://github.com/eislab-cps/go-template/pkgs/container/go-template)
+See this page: [GitHub Packages - linoss-7/D7024E-Project](https://github.com/linoss-7/D7024E-Project/pkgs/container/linoss-7/D7024E-Project)
 
 ## Other tips
 - Run `go mod tidy` to clean up and verify dependencies.
