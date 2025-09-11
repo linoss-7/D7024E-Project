@@ -1,4 +1,4 @@
-module github.com/eislab-cps/go-template
+module github.com/linoss-7/D7024E-Project
 
 go 1.23.5
 

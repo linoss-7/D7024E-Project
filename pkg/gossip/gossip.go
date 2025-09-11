@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncyborgse/go-template/pkg/network"
-	"github.com/ncyborgse/go-template/pkg/node"
+	"github.com/linoss-7/D7024E-Project/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/node"
 )
 
 // GossipMessage represents a piece of information spreading through the network
