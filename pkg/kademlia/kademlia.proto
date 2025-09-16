@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package kademlia;
+
+option go_package = "github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers;rpc_handlers";
+
+message KademliaMessage {
+    bytes RPCId = 1;
+    bytes SenderId = 2;
+    bytes Body = 3;
+}
