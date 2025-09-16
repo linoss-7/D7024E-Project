@@ -1,7 +1,6 @@
 package kademlia
 
 import (
-	"log"
 	"math/big"
 	"math/rand"
 	"sort"
@@ -141,7 +140,6 @@ func TestNonFullBuckets(t *testing.T) {
 
 		// XOR distance to zero is just the ID itself as a number
 		dist := id.ToBigInt()
-		log.Printf("Generated node ID %s with distance %s\n", id.ToString(), dist.String())
 
 		candidates = append(candidates, candidate{
 			info:     nodeInfo,
@@ -154,7 +152,6 @@ func TestNonFullBuckets(t *testing.T) {
 		return candidates[i].distance.Cmp(candidates[j].distance) < 0
 	})
 
-	log.Printf("Generated %d candidates\n", len(candidates))
 	// Smallest 4
 	expected := candidates[:4]
 
@@ -182,15 +179,16 @@ func TestNonFullBuckets(t *testing.T) {
 		}
 	}
 
+	/* // Uncomment to show smallest vs found
 	log.Printf("Smallest nodes IDs:")
 	for _, smallNode := range expected {
 		log.Printf(" - %s", smallNode.info.ID.ToString())
 	}
 
-	log.Printf("Closest nodes IDs:")
 	for _, nodeInfo := range closest {
 		log.Printf(" - %s", nodeInfo.ID.ToString())
 	}
+	*/
 
 }
 
