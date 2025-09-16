@@ -38,7 +38,6 @@ var StartNodeCmd = &cobra.Command{
 		}
 
 		newNode.Handle("message", func(msg network.Message) error {
-			cmd.Printf("Received message from %s: %s\n", msg.From.String(), string(msg.Payload))
 			return nil
 		})
 
@@ -56,10 +55,9 @@ var StartNodeCmd = &cobra.Command{
 					cmd.Println("Failed to send message:", err)
 					return
 				}
-				cmd.Printf("Sent message to %s\n", nextAddr.String())
 			}
 		})
-		cmd.Printf("Node started at %s. Listening for messages...\n", addr.String())
+		//cmd.Printf("Node started at %s. Listening for messages...\n", addr.String())
 
 		select {} // Block forever, keeping the node alive
 

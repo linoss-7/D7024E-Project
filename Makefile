@@ -28,6 +28,7 @@ coverage:
 
 test: 
 	@cd pkg/helloworld; go test -v --race
+	@cd pkg/kademlia; go test -v --race
 
 install:
 	cp ./bin/$(BINARY_NAME) /usr/local/bin
