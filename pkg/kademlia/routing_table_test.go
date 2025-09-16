@@ -141,7 +141,7 @@ func TestNonFullBuckets(t *testing.T) {
 
 		// XOR distance to zero is just the ID itself as a number
 		dist := id.ToBigInt()
-		log.Printf("Generated node ID %s with distance %s\n", id.ToString(), dist.String())
+		//log.Printf("Generated node ID %s with distance %s\n", id.ToString(), dist.String())
 
 		candidates = append(candidates, candidate{
 			info:     nodeInfo,
@@ -182,6 +182,7 @@ func TestNonFullBuckets(t *testing.T) {
 		}
 	}
 
+	/*
 	log.Printf("Smallest nodes IDs:")
 	for _, smallNode := range expected {
 		log.Printf(" - %s", smallNode.info.ID.ToString())
@@ -191,6 +192,7 @@ func TestNonFullBuckets(t *testing.T) {
 	for _, nodeInfo := range closest {
 		log.Printf(" - %s", nodeInfo.ID.ToString())
 	}
+	*/
 
 }
 
