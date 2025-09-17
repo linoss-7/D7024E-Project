@@ -33,6 +33,40 @@ func (rt *RoutingTable) InitBuckets(buckets [][]NodeInfo) {
 	rt.buckets = buckets
 }
 
+func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
+	// Find the appropriate bucket for the new contact
+	diffBit := 0
+
+	for i := 0; i < 160; i++ {
+		if rt.ownerNodeInfo.ID.Get(i) != nodeInfo.ID.Get(i) {
+			diffBit = i
+			break
+		}
+	}
+
+	bucketIndex := 159 - diffBit
+
+	// Check if bucket is full
+	rt.bucketLock.Lock()
+	bucket := rt.buckets[bucketIndex]
+	rt.bucketLock.Unlock()
+	if len(bucket) < rt.k {
+		// Add node to end of bucket
+		rt.buckets[bucketIndex] = append(bucket, nodeInfo)
+		return
+	}
+
+	// If bucket is full, ping the least recently seen node
+	leastRecent := bucket[0]
+	for _, nodeInfo := range bucket {
+		if nodeInfo.LastSeen < leastRecent.LastSeen {
+			leastRecent = nodeInfo
+		}
+	}
+	// Ping the least recently seen node
+
+}
+
 func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {
 	var closest []*NodeInfo
 
@@ -128,29 +162,3 @@ func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {
 
 	return closest
 }
-
-/*
-func leadingZeroBits(b byte) int {
-	for i := 0; i < 8; i++ {
-		if (b & (1 << (7 - i))) != 0 {
-			return i
-		}
-	}
-	return 8
-}
-
-/*
-func idToBytes(id int) []byte {
-	b := make([]byte, 160)
-	binary.BigEndian.PutUint64(b, uint64(id))
-	return b
-}
-
-/*
-func (rt *RoutingTable) pingNode(nodeInfo NodeInfo) {
-	// Send ping
-	addr := network.Address{IP: nodeInfo.IP, Port: nodeInfo.Port}
-
-	rt.ownerNode.Send(addr, "ping", []byte{})
-}
-*/
