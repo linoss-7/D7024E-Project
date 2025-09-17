@@ -20,6 +20,7 @@ func NewBitArray(length int) BitArray {
 	}
 }
 
+
 func NewBitArrayFromBytes(data []byte, length int) BitArray {
 	if len(data)*8 < length {
 		panic("byte slice too short for the specified length")
@@ -111,3 +112,4 @@ func (b *BitArray) Equals(other BitArray) bool {
 	}
 	return true
 }
+
