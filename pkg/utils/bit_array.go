@@ -20,6 +20,17 @@ func NewBitArray(length int) BitArray {
 	}
 }
 
+
+func NewBitArrayFromBytes(data []byte, length int) BitArray {
+	if len(data)*8 < length {
+		panic("byte slice too short for the specified length")
+	}
+	return BitArray{
+		bits:   data[:byte(len(data))],
+		length: length,
+	}
+}
+
 // Set sets the bit at position i (0-based) to 1 or 0
 func (b *BitArray) Set(i int, value bool) {
 	if i < 0 || i >= b.length {
@@ -89,3 +100,16 @@ func (b *BitArray) Xor(other BitArray) BitArray {
 	}
 	return result
 }
+
+func (b *BitArray) Equals(other BitArray) bool {
+	if b.Size() != other.Size() {
+		return false
+	}
+	for i := 0; i < b.Size(); i++ {
+		if b.Get(i) != other.Get(i) {
+			return false
+		}
+	}
+	return true
+}
+

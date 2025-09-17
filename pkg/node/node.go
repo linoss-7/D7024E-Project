@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync"
 
+	"github.com/google/uuid" // go get github.com/google/uuid
+
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 )
 
@@ -13,7 +15,7 @@ type Node struct {
 	addr       network.Address
 	network    network.Network
 	connection network.Connection
-	handlers   map[string]MessageHandler
+	handlers   map[string][]HandlerEntry
 	mu         sync.RWMutex
 	closed     bool
 	closeMu    sync.RWMutex
@@ -21,6 +23,11 @@ type Node struct {
 
 // MessageHandler is a function that processes incoming messages
 type MessageHandler func(msg network.Message) error
+
+type HandlerEntry struct {
+	ID      string
+	Handler MessageHandler
+}
 
 // NewNode creates a new node that can both send and receive messages
 func NewNode(network network.Network, addr network.Address) (*Node, error) {
@@ -33,15 +40,35 @@ func NewNode(network network.Network, addr network.Address) (*Node, error) {
 		addr:       addr,
 		network:    network,
 		connection: connection,
-		handlers:   make(map[string]MessageHandler),
+		handlers:   make(map[string][]HandlerEntry),
 	}, nil
 }
 
 // Handle registers a message handler for a specific message type
-func (n *Node) Handle(msgType string, handler MessageHandler) {
+func (n *Node) Handle(msgType string, handler MessageHandler) string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.handlers[msgType] = handler
+	id := uuid.New().String()
+	n.handlers[msgType] = append(n.handlers[msgType], HandlerEntry{
+		ID:      id,
+		Handler: handler,
+	})
+	return id
+}
+
+func (n *Node) RemoveHandler(msgType string, id string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	handlers, exists := n.handlers[msgType]
+	if !exists {
+		return
+	}
+	for i, h := range handlers {
+		if h.ID == id {
+			n.handlers[msgType] = append(handlers[:i], handlers[i+1:]...)
+			break
+		}
+	}
 }
 
 // Start begins listening for incoming messages
@@ -85,10 +112,13 @@ func (n *Node) Start() {
 			}
 			n.mu.RUnlock()
 
-			if exists && handler != nil {
-				log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
-				if err := handler(msg); err != nil {
-					log.Printf("Handler error: %v", err)
+			if exists {
+				for _, handler := range handler {
+					//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
+					if err := handler.Handler(msg); err != nil {
+						log.Printf("Handler error: %v", err)
+					}
+
 				}
 			}
 		}
@@ -117,6 +147,7 @@ func (n *Node) Send(to network.Address, msgType string, data []byte) error {
 		Payload: payload,
 	}
 
+	//logrus.Infof("Node %s sending message of type '%s' to %s", n.addr.String(), msgType, to.String())
 	return connection.Send(msg)
 }
 
