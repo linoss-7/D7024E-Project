@@ -1,25 +1,20 @@
 package kademlia
 
 import (
-	"log"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sort"
 	"testing"
 
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
-	"github.com/linoss-7/D7024E-Project/pkg/node"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 )
 
 func TestFullTable(t *testing.T) {
-	net := network.NewMockNetwork()
 
-	node, err := node.NewNode(net, network.Address{IP: "localhost", Port: 8000})
-
-	if err != nil {
-		t.Fatalf("Failed to create node: %v", err)
-	}
+	rpcSender := &mockRPCSender{}
 
 	nodeInfo := NodeInfo{
 		IP:   "localhost",
@@ -27,7 +22,7 @@ func TestFullTable(t *testing.T) {
 		ID:   utils.NewBitArray(160),
 	}
 
-	rt := NewRoutingTable(node, nodeInfo, 4)
+	rt := NewRoutingTable(rpcSender, nodeInfo, 4)
 
 	table := make([][]NodeInfo, 0)
 
@@ -84,23 +79,19 @@ func TestFullTable(t *testing.T) {
 			}
 		}
 	}
-
 }
 
 func TestNonFullBuckets(t *testing.T) {
-	net := network.NewMockNetwork()
-
-	node, err := node.NewNode(net, network.Address{IP: "localhost", Port: 8000})
-	if err != nil {
-		t.Fatalf("Failed to create node: %v", err)
-	}
+	mockSender := &mockRPCSender{}
 	nodeInfo := NodeInfo{
 		IP:   "localhost",
 		Port: 8000,
 		ID:   utils.NewBitArray(160),
 	}
 
-	rt := NewRoutingTable(node, nodeInfo, 4)
+	// Mock an rpc sender that always gives correct response
+
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
 
 	table := make([][]NodeInfo, 0)
 
@@ -154,7 +145,7 @@ func TestNonFullBuckets(t *testing.T) {
 		return candidates[i].distance.Cmp(candidates[j].distance) < 0
 	})
 
-	log.Printf("Generated %d candidates\n", len(candidates))
+	//log.Printf("Generated %d candidates\n", len(candidates))
 	// Smallest 4
 	expected := candidates[:4]
 
@@ -183,31 +174,29 @@ func TestNonFullBuckets(t *testing.T) {
 	}
 
 	/*
-	log.Printf("Smallest nodes IDs:")
-	for _, smallNode := range expected {
-		log.Printf(" - %s", smallNode.info.ID.ToString())
-	}
+		log.Printf("Smallest nodes IDs:")
+		for _, smallNode := range expected {
+			log.Printf(" - %s", smallNode.info.ID.ToString())
+		}
 
-	log.Printf("Closest nodes IDs:")
-	for _, nodeInfo := range closest {
-		log.Printf(" - %s", nodeInfo.ID.ToString())
-	}
+		log.Printf("Closest nodes IDs:")
+		for _, nodeInfo := range closest {
+			log.Printf(" - %s", nodeInfo.ID.ToString())
+		}
 	*/
 
 }
 
 func TestFewerThanKNodes(t *testing.T) {
-	net := network.NewMockNetwork()
-	node, err := node.NewNode(net, network.Address{IP: "localhost", Port: 8000})
-	if err != nil {
-		t.Fatalf("Failed to create node: %v", err)
-	}
+
 	nodeInfo := NodeInfo{
 		IP:   "localhost",
 		Port: 8000,
 		ID:   utils.NewBitArray(160),
 	}
-	rt := NewRoutingTable(node, nodeInfo, 4)
+
+	mockSender := &mockRPCSender{}
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
 
 	table := make([][]NodeInfo, 0)
 
@@ -264,6 +253,152 @@ func TestFewerThanKNodes(t *testing.T) {
 	}
 }
 
+func TestAddingSingleNode(t *testing.T) {
+
+	for i := 0; i < 10; i++ {
+		// Generate a random node ID
+		nodeInfo := NodeInfo{
+			IP:   "localhost",
+			Port: 8000,
+			ID:   utils.NewRandomBitArray(160),
+		}
+
+		mockSender := &mockRPCSender{}
+
+		rt := NewRoutingTable(mockSender, nodeInfo, 4)
+
+		// Generate another random ID
+		anotherNodeInfo := NodeInfo{
+			IP:   "localhost",
+			Port: 8001,
+			ID:   utils.NewRandomBitArray(160),
+		}
+
+		rt.NewContact(anotherNodeInfo)
+
+		newId := utils.NewRandomBitArray(160)
+		closest := rt.FindClosest(newId)
+
+		// Ensure we got the 1 node
+		if len(closest) != 1 {
+			t.Errorf("Expected 1 closest node, got %d", len(closest))
+		}
+
+		if closest[0].ID.ToString() != anotherNodeInfo.ID.ToString() {
+			t.Errorf("Node ID %s not found in added node %s", closest[0].ID.ToString(), anotherNodeInfo.ID.ToString())
+		}
+	}
+}
+
+func TestRespondingFullNode(t *testing.T) {
+	firstFour := make([]NodeInfo, 0)
+
+	nodeInfo := NodeInfo{
+		IP:   "localhost",
+		Port: 8000,
+		ID:   utils.NewBitArray(160),
+	}
+
+	mockSender := &mockRPCSender{}
+
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
+
+	// Generate 100 nodes in the same bucket
+
+	// Select a bucket greater than 5
+	bucket := rand.Intn(154) + 5
+
+	for i := 0; i < 100; i++ {
+		nodeInfo := NodeInfo{
+			IP:   "localhost",
+			Port: 8000 + i,
+			ID:   generateValidId(bucket),
+		}
+		rt.NewContact(nodeInfo)
+
+		if i < 4 {
+			firstFour = append(firstFour, nodeInfo)
+		}
+	}
+
+	// Get an arbitary id
+
+	newId := utils.NewRandomBitArray(160)
+	closest := rt.FindClosest(newId)
+
+	// Ensure we got the 4 nodes
+	if len(closest) != 4 {
+		t.Errorf("Expected 4 closest nodes, got %d", len(closest))
+	}
+
+	for _, nodeInfo := range closest {
+		found := false
+		for _, firstNode := range firstFour {
+			if nodeInfo.ID.ToString() == firstNode.ID.ToString() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Node ID %s not found in first four nodes", nodeInfo.ID.ToString())
+		}
+	}
+}
+
+func TestNonRespondingFullNode(t *testing.T) {
+	lastFour := make([]NodeInfo, 0)
+
+	nodeInfo := NodeInfo{
+		IP:   "localhost",
+		Port: 8000,
+		ID:   utils.NewBitArray(160),
+	}
+
+	mockSender := &mockNoResponseRPCSender{}
+
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
+
+	// Generate 100 nodes in the same bucket
+
+	// Select a bucket greater than 5
+	bucket := rand.Intn(154) + 5
+	for i := 0; i < 100; i++ {
+		nodeInfo := NodeInfo{
+			IP:   "localhost",
+			Port: 8000 + i,
+			ID:   generateValidId(bucket),
+		}
+		rt.NewContact(nodeInfo)
+
+		if i >= 96 {
+			lastFour = append(lastFour, nodeInfo)
+		}
+	}
+
+	// Get an arbitary id
+
+	newId := utils.NewRandomBitArray(160)
+	closest := rt.FindClosest(newId)
+
+	// Ensure we got the 4 nodes
+	if len(closest) != 4 {
+		t.Errorf("Expected 4 closest nodes, got %d", len(closest))
+	}
+
+	for _, nodeInfo := range closest {
+		found := false
+		for _, lastNode := range lastFour {
+			if nodeInfo.ID.ToString() == lastNode.ID.ToString() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Node ID %s not found in last four nodes", nodeInfo.ID.ToString())
+		}
+	}
+}
+
 func generateValidId(i int) utils.BitArray {
 	id := utils.NewBitArray(160)
 
@@ -274,7 +409,6 @@ func generateValidId(i int) utils.BitArray {
 		if bit == 1 {
 			id.Set(k, true)
 		}
-
 	}
 	//log.Printf("Generated random ID: %s\n", id.ToString())
 	// Set the i-th bit to 1
@@ -287,4 +421,30 @@ func generateValidId(i int) utils.BitArray {
 	}
 	//log.Printf("Cleared bits above %d: %s\n", i, id.ToString())
 	return id
+}
+
+type mockRPCSender struct{}
+
+func (m *mockRPCSender) SendAndAwaitResponse(rpc string, address network.Address, body []byte) (*rpc_handlers.KademliaMessage, error) {
+	// return a reponse in the opposite direction
+
+	// Make an arbitary rpc id and node ids
+	Id := make([]byte, 160)
+	SenderId := make([]byte, 160)
+	copy(SenderId, address.IP)
+	return rpc_handlers.NewKademliaMessage(Id, SenderId, body), nil
+
+	// RPCId []byte, SenderId []byte, Body []byte
+}
+func (m *mockRPCSender) Send(rpc string, address network.Address, body []byte) error {
+	return nil
+}
+
+type mockNoResponseRPCSender struct{}
+
+func (m *mockNoResponseRPCSender) SendAndAwaitResponse(rpc string, address network.Address, body []byte) (*rpc_handlers.KademliaMessage, error) {
+	return nil, fmt.Errorf("no response")
+}
+func (m *mockNoResponseRPCSender) Send(rpc string, address network.Address, body []byte) error {
+	return nil
 }

@@ -4,13 +4,14 @@ import (
 	"math/big"
 	"sort"
 	"sync"
+	"time"
 
-	"github.com/linoss-7/D7024E-Project/pkg/node"
+	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 )
 
 type RoutingTable struct {
-	ownerNode     *node.Node
+	rpcSender     IRPCSender
 	ownerNodeInfo NodeInfo
 	buckets       [][]NodeInfo
 	bucketLock    sync.RWMutex
@@ -18,13 +19,20 @@ type RoutingTable struct {
 	PendingPings  map[int]NodeInfo
 }
 
-func NewRoutingTable(self *node.Node, selfInfo NodeInfo, k int) *RoutingTable {
-	return &RoutingTable{
-		ownerNode:     self,
+func NewRoutingTable(rpc_sender IRPCSender, selfInfo NodeInfo, k int) *RoutingTable {
+	rt := &RoutingTable{
+		rpcSender:     rpc_sender,
 		ownerNodeInfo: selfInfo,
 		buckets:       make([][]NodeInfo, 0),
 		k:             k,
 	}
+
+	// Initialize 160 empty buckets
+	for i := 0; i < 160; i++ {
+		rt.buckets = append(rt.buckets, make([]NodeInfo, 0))
+	}
+	return rt
+
 }
 
 func (rt *RoutingTable) InitBuckets(buckets [][]NodeInfo) {
@@ -59,12 +67,48 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 	// If bucket is full, ping the least recently seen node
 	leastRecent := bucket[0]
 	for _, nodeInfo := range bucket {
-		if nodeInfo.LastSeen < leastRecent.LastSeen {
+		if nodeInfo.LastSeen.Unix() < leastRecent.LastSeen.Unix() {
 			leastRecent = nodeInfo
 		}
 	}
+
 	// Ping the least recently seen node
 
+	address := &network.Address{
+		IP:   leastRecent.IP,
+		Port: leastRecent.Port,
+	}
+
+	_, err := rt.rpcSender.SendAndAwaitResponse("ping", *address, nil)
+
+	if err != nil {
+		// Node did note respond, remove the node and add the new node at the end of the bucket
+		newBucket := make([]NodeInfo, 0)
+		for _, nodeInfo := range bucket {
+			if nodeInfo.ID.ToString() != leastRecent.ID.ToString() {
+				newBucket = append(newBucket, nodeInfo)
+			}
+		}
+
+		newBucket = append(newBucket, nodeInfo)
+		rt.bucketLock.Lock()
+		rt.buckets[bucketIndex] = newBucket
+		rt.bucketLock.Unlock()
+		return
+	}
+
+	// Node responded, update its LastSeen and move it to the end of the bucket
+	leastRecent.LastSeen = time.Now()
+	newBucket := make([]NodeInfo, 0)
+	for _, nodeInfo := range bucket {
+		if nodeInfo.ID.ToString() != leastRecent.ID.ToString() {
+			newBucket = append(newBucket, nodeInfo)
+		}
+	}
+	newBucket = append(newBucket, leastRecent)
+	rt.bucketLock.Lock()
+	rt.buckets[bucketIndex] = newBucket
+	rt.bucketLock.Unlock()
 }
 
 func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {

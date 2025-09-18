@@ -2,6 +2,7 @@ package utils
 
 import (
 	"math/big"
+	"math/rand"
 	"strings"
 )
 
@@ -20,6 +21,13 @@ func NewBitArray(length int) BitArray {
 	}
 }
 
+func NewRandomBitArray(length int) BitArray {
+	bitArray := NewBitArray(length)
+	for i := 0; i < length; i++ {
+		bitArray.Set(i, rand.Intn(2) == 1)
+	}
+	return bitArray
+}
 
 func NewBitArrayFromBytes(data []byte, length int) BitArray {
 	if len(data)*8 < length {
@@ -112,4 +120,3 @@ func (b *BitArray) Equals(other BitArray) bool {
 	}
 	return true
 }
-
