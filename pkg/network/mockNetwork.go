@@ -78,7 +78,7 @@ func (c *mockConnection) Send(msg Message) error {
 	}
 
 	// Add network reference to message for replies
-	msg.network = c.network
+	msg.Network = c.network
 
 	// Keep the lock while sending to prevent the channel from being closed
 	select {

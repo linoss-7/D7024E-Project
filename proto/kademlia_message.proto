@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "./;common";
+
+message KademliaMessage {
+    bytes RPCId = 1;
+    bytes SenderId = 2;
+    bytes Body = 3;
+}

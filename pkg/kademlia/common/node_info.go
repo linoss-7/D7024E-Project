@@ -1,4 +1,4 @@
-package kademlia
+package common
 
 import (
 	"time"

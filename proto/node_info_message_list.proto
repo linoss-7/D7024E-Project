@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package common;
+
+import "node_info_message.proto";
+
+option go_package = "./;common";
+
+message NodeInfoMessageList {
+    repeated common.NodeInfoMessage nodes = 1;
+}

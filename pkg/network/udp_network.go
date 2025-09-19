@@ -86,7 +86,7 @@ func (c *udpConnection) Send(msg Message) error {
 	defer c.network.mu.RUnlock()
 
 	// Add network reference to message for replies
-	msg.network = c.network
+	msg.Network = c.network
 
 	if c.network.partitions[c.addr] || c.network.partitions[msg.To] {
 		return errors.New("network partitioned")
@@ -132,7 +132,7 @@ func (c *udpConnection) listen() {
 		msg.To = c.addr
 		msg.Payload = make([]byte, n)
 		copy(msg.Payload, buf[:n])
-		msg.network = c.network
+		msg.Network = c.network
 
 		c.mu.RLock()
 		ch := c.recvCh

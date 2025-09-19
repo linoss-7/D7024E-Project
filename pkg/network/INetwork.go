@@ -32,7 +32,7 @@ type Message struct {
 	From    Address
 	To      Address
 	Payload []byte
-	network Network // Reference to network for replies
+	Network Network // Reference to network for replies
 }
 
 func (m Message) ReplyString(prefix string, message string) error {
@@ -42,9 +42,9 @@ func (m Message) ReplyString(prefix string, message string) error {
 		From:    m.To,
 		To:      m.From,
 		Payload: payload,
-		network: m.network,
+		Network: m.Network,
 	}
-	conn, err := m.network.Dial(m.From)
+	conn, err := m.Network.Dial(m.From)
 	if err != nil {
 		return err
 	}

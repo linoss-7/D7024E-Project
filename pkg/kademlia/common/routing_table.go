@@ -1,4 +1,4 @@
-package kademlia
+package common
 
 import (
 	"math/big"
@@ -12,17 +12,16 @@ import (
 
 type RoutingTable struct {
 	rpcSender     IRPCSender
-	ownerNodeInfo NodeInfo
+	OwnerNodeInfo NodeInfo
 	buckets       [][]NodeInfo
 	bucketLock    sync.RWMutex
 	k             int // max nodes per bucket
-	PendingPings  map[int]NodeInfo
 }
 
 func NewRoutingTable(rpc_sender IRPCSender, selfInfo NodeInfo, k int) *RoutingTable {
 	rt := &RoutingTable{
 		rpcSender:     rpc_sender,
-		ownerNodeInfo: selfInfo,
+		OwnerNodeInfo: selfInfo,
 		buckets:       make([][]NodeInfo, 0),
 		k:             k,
 	}
@@ -46,7 +45,7 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 	diffBit := 0
 
 	for i := 0; i < 160; i++ {
-		if rt.ownerNodeInfo.ID.Get(i) != nodeInfo.ID.Get(i) {
+		if rt.OwnerNodeInfo.ID.Get(i) != nodeInfo.ID.Get(i) {
 			diffBit = i
 			break
 		}
@@ -59,9 +58,28 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 	bucket := rt.buckets[bucketIndex]
 	rt.bucketLock.Unlock()
 	if len(bucket) < rt.k {
-		// Add node to end of bucket
+		// Otherwise add node to end of bucket
 		rt.buckets[bucketIndex] = append(bucket, nodeInfo)
 		return
+	}
+
+	// Check if node already exists in bucket
+	for i, n := range bucket {
+		if n.ID.ToString() == nodeInfo.ID.ToString() {
+			// Node already exists, update its LastSeen and move it to the end of the bucket
+			bucket[i].LastSeen = time.Now()
+			newBucket := make([]NodeInfo, 0)
+			for _, n := range bucket {
+				if n.ID.ToString() != bucket[i].ID.ToString() {
+					newBucket = append(newBucket, n)
+				}
+			}
+			newBucket = append(newBucket, bucket[i])
+			rt.bucketLock.Lock()
+			rt.buckets[bucketIndex] = newBucket
+			rt.bucketLock.Unlock()
+			return
+		}
 	}
 
 	// If bucket is full, ping the least recently seen node
@@ -79,7 +97,9 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 		Port: leastRecent.Port,
 	}
 
-	_, err := rt.rpcSender.SendAndAwaitResponse("ping", *address, nil)
+	kademliaMessage := &KademliaMessage{}
+
+	_, err := rt.rpcSender.SendAndAwaitResponse("ping", *address, kademliaMessage)
 
 	if err != nil {
 		// Node did note respond, remove the node and add the new node at the end of the bucket
@@ -119,15 +139,13 @@ func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {
 	diffBit := 0
 
 	for i := 0; i < 160; i++ {
-		if rt.ownerNodeInfo.ID.Get(i) != targetID.Get(i) {
+		if rt.OwnerNodeInfo.ID.Get(i) != targetID.Get(i) {
 			diffBit = i
 			break
 		}
 	}
 
 	bucketIndex := 159 - diffBit
-
-	//log.Printf("Finding closest nodes to %s, starting at bucket %d\n", targetID.ToString(), bucketIndex)
 
 	// Add all nodes from the closest bucket
 	rt.bucketLock.RLock()
