@@ -4,6 +4,8 @@ package common;
 
 option go_package = "./;common";
 
+// protoc --proto_path=proto --go_out=pkg/kademlia/common kademlia_message.proto  Run this from root directory if you need to regenerate
+
 message KademliaMessage {
     bytes RPCId = 1;
     bytes SenderId = 2;
