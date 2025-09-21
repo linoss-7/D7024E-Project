@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "./;common";
+
+message NodeInfoMessage {
+    string IP = 1;
+    int32 Port = 2;
+    bytes ID = 3;
+}

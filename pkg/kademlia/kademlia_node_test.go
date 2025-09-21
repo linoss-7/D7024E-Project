@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
@@ -16,7 +17,7 @@ func TestPingAndResponse(t *testing.T) {
 
 	// Set up two nodes
 
-	alice, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, utils.NewBitArray(160))
+	alice, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160))
 
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
@@ -27,7 +28,7 @@ func TestPingAndResponse(t *testing.T) {
 	// Set a bit to differentiate from Alice Id
 	bobId.Set(100, true)
 
-	bob, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8001}, bobId)
+	bob, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8001}, *bobId)
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
@@ -39,7 +40,7 @@ func TestPingAndResponse(t *testing.T) {
 	bob.Node.Handle("ping", pingHandler.Handle)
 
 	// Alice sends a ping to Bob
-	aliceMsg := alice.DefaultKademliaMessage(nil)
+	aliceMsg := common.DefaultKademliaMessage(alice.ID, nil)
 
 	response, err := alice.SendAndAwaitResponse("ping", bob.Node.Address(), aliceMsg)
 	if err != nil {
@@ -56,7 +57,7 @@ func TestMultiplePings(t *testing.T) {
 
 	// Set up two nodes
 
-	alice, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, utils.NewBitArray(160))
+	alice, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160))
 
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
@@ -67,7 +68,7 @@ func TestMultiplePings(t *testing.T) {
 	// Set a bit to differentiate from Alice Id
 	bobId.Set(100, true)
 
-	bob, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8001}, bobId)
+	bob, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8001}, *bobId)
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
@@ -78,7 +79,7 @@ func TestMultiplePings(t *testing.T) {
 	// Register ping handler to node
 	bob.Node.Handle("ping", pingHandler.Handle)
 
-	respCh := make(chan *rpc_handlers.KademliaMessage, 10)
+	respCh := make(chan *common.KademliaMessage, 10)
 	errCh := make(chan error)
 
 	var wg sync.WaitGroup
@@ -89,7 +90,7 @@ func TestMultiplePings(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			aliceMsg := alice.DefaultKademliaMessage(nil)
+			aliceMsg := common.DefaultKademliaMessage(alice.ID, nil)
 			resp, err := alice.SendAndAwaitResponse("ping", bob.Node.Address(), aliceMsg)
 			if err != nil {
 				t.Errorf("Failed to send ping: %v", err)
@@ -119,7 +120,7 @@ func TestMultiplePings(t *testing.T) {
 	}
 
 	// Store the responses from goroutines
-	var responses []*rpc_handlers.KademliaMessage
+	var responses []*common.KademliaMessage
 	for i := 0; i < 10; i++ {
 		select {
 		case resp := <-respCh:

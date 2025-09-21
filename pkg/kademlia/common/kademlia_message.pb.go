@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: kademlia.proto
+// source: kademlia_message.proto
 
-package rpc_handlers
+package common
 
 import (
 	reflect "reflect"
@@ -33,7 +33,7 @@ type KademliaMessage struct {
 
 func (x *KademliaMessage) Reset() {
 	*x = KademliaMessage{}
-	mi := &file_kademlia_proto_msgTypes[0]
+	mi := &file_kademlia_message_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -45,7 +45,7 @@ func (x *KademliaMessage) String() string {
 func (*KademliaMessage) ProtoMessage() {}
 
 func (x *KademliaMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_kademlia_proto_msgTypes[0]
+	mi := &file_kademlia_message_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58,7 +58,7 @@ func (x *KademliaMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KademliaMessage.ProtoReflect.Descriptor instead.
 func (*KademliaMessage) Descriptor() ([]byte, []int) {
-	return file_kademlia_proto_rawDescGZIP(), []int{0}
+	return file_kademlia_message_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *KademliaMessage) GetRPCId() []byte {
@@ -82,33 +82,33 @@ func (x *KademliaMessage) GetBody() []byte {
 	return nil
 }
 
-var File_kademlia_proto protoreflect.FileDescriptor
+var File_kademlia_message_proto protoreflect.FileDescriptor
 
-const file_kademlia_proto_rawDesc = "" +
+const file_kademlia_message_proto_rawDesc = "" +
 	"\n" +
-	"\x0ekademlia.proto\x12\bkademlia\"W\n" +
+	"\x16kademlia_message.proto\x12\x06common\"W\n" +
 	"\x0fKademliaMessage\x12\x14\n" +
 	"\x05RPCId\x18\x01 \x01(\fR\x05RPCId\x12\x1a\n" +
 	"\bSenderId\x18\x02 \x01(\fR\bSenderId\x12\x12\n" +
-	"\x04Body\x18\x03 \x01(\fR\x04BodyBKZIgithub.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers;rpc_handlersb\x06proto3"
+	"\x04Body\x18\x03 \x01(\fR\x04BodyB\vZ\t./;commonb\x06proto3"
 
 var (
-	file_kademlia_proto_rawDescOnce sync.Once
-	file_kademlia_proto_rawDescData []byte
+	file_kademlia_message_proto_rawDescOnce sync.Once
+	file_kademlia_message_proto_rawDescData []byte
 )
 
-func file_kademlia_proto_rawDescGZIP() []byte {
-	file_kademlia_proto_rawDescOnce.Do(func() {
-		file_kademlia_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_kademlia_proto_rawDesc), len(file_kademlia_proto_rawDesc)))
+func file_kademlia_message_proto_rawDescGZIP() []byte {
+	file_kademlia_message_proto_rawDescOnce.Do(func() {
+		file_kademlia_message_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_kademlia_message_proto_rawDesc), len(file_kademlia_message_proto_rawDesc)))
 	})
-	return file_kademlia_proto_rawDescData
+	return file_kademlia_message_proto_rawDescData
 }
 
-var file_kademlia_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_kademlia_proto_goTypes = []any{
-	(*KademliaMessage)(nil), // 0: kademlia.KademliaMessage
+var file_kademlia_message_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_kademlia_message_proto_goTypes = []any{
+	(*KademliaMessage)(nil), // 0: common.KademliaMessage
 }
-var file_kademlia_proto_depIdxs = []int32{
+var file_kademlia_message_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -116,26 +116,26 @@ var file_kademlia_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_kademlia_proto_init() }
-func file_kademlia_proto_init() {
-	if File_kademlia_proto != nil {
+func init() { file_kademlia_message_proto_init() }
+func file_kademlia_message_proto_init() {
+	if File_kademlia_message_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kademlia_proto_rawDesc), len(file_kademlia_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kademlia_message_proto_rawDesc), len(file_kademlia_message_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_kademlia_proto_goTypes,
-		DependencyIndexes: file_kademlia_proto_depIdxs,
-		MessageInfos:      file_kademlia_proto_msgTypes,
+		GoTypes:           file_kademlia_message_proto_goTypes,
+		DependencyIndexes: file_kademlia_message_proto_depIdxs,
+		MessageInfos:      file_kademlia_message_proto_msgTypes,
 	}.Build()
-	File_kademlia_proto = out.File
-	file_kademlia_proto_goTypes = nil
-	file_kademlia_proto_depIdxs = nil
+	File_kademlia_message_proto = out.File
+	file_kademlia_message_proto_goTypes = nil
+	file_kademlia_message_proto_depIdxs = nil
 }

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"math/big"
+	"math/rand"
 	"strings"
 )
 
@@ -12,20 +13,27 @@ type BitArray struct {
 }
 
 // NewBitArray creates a new bit array with the given number of bits
-func NewBitArray(length int) BitArray {
+func NewBitArray(length int) *BitArray {
 	byteLen := (length + 7) / 8
-	return BitArray{
+	return &BitArray{
 		bits:   make([]byte, byteLen),
 		length: length,
 	}
 }
 
+func NewRandomBitArray(length int) *BitArray {
+	bitArray := NewBitArray(length)
+	for i := 0; i < length; i++ {
+		bitArray.Set(i, rand.Intn(2) == 1)
+	}
+	return bitArray
+}
 
-func NewBitArrayFromBytes(data []byte, length int) BitArray {
+func NewBitArrayFromBytes(data []byte, length int) *BitArray {
 	if len(data)*8 < length {
 		panic("byte slice too short for the specified length")
 	}
-	return BitArray{
+	return &BitArray{
 		bits:   data[:byte(len(data))],
 		length: length,
 	}
@@ -89,7 +97,7 @@ func (b *BitArray) ToBigInt() *big.Int {
 	return res
 }
 
-func (b *BitArray) Xor(other BitArray) BitArray {
+func (b *BitArray) Xor(other BitArray) *BitArray {
 	if b.Size() != other.Size() {
 		panic("bit arrays must be of the same size to XOR")
 	}
@@ -112,4 +120,3 @@ func (b *BitArray) Equals(other BitArray) bool {
 	}
 	return true
 }
-

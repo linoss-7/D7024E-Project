@@ -1,6 +1,7 @@
 package rpc_handlers
 
 import (
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/node"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
@@ -22,7 +23,7 @@ func NewPingHandler(node *node.Node, id utils.BitArray) *PingHandler {
 func (ph *PingHandler) Handle(msg network.Message) error {
 	// Echo reply with the same RPCId
 	//logrus.Infof("Node %s received ping from %s", ph.ID.ToString(), msg.From.String())
-	var km KademliaMessage
+	var km common.KademliaMessage
 	payload := msg.Payload[5:] // Exclude "ping:" prefix
 	if err := proto.Unmarshal(payload, &km); err != nil {
 		return err

@@ -3,10 +3,9 @@ package kademlia
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"time"
 
-	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/node"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
@@ -34,14 +33,14 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 	}, nil
 }
 
-func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *rpc_handlers.KademliaMessage) (*rpc_handlers.KademliaMessage, error) {
+func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) (*common.KademliaMessage, error) {
 	// Send a message and block until a message with the same RPCId is received
-	responseCh := make(chan *rpc_handlers.KademliaMessage)
+	responseCh := make(chan *common.KademliaMessage)
 	errCh := make(chan error)
 
 	// Create a new message handler for the response
 	handlerFunc := func(msg network.Message) error {
-		var respMsg rpc_handlers.KademliaMessage
+		var respMsg common.KademliaMessage
 		payload := msg.Payload[6:] // Exclude "reply:" prefix
 		if err := proto.Unmarshal(payload, &respMsg); err != nil {
 			errCh <- fmt.Errorf("failed to unmarshal response: %v", err)
@@ -72,7 +71,7 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 	}
 }
 
-func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessage *rpc_handlers.KademliaMessage) error {
+func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessage *common.KademliaMessage) error {
 	kademliaMessage.SenderId = kn.ID.ToBytes()
 
 	marshalledMsg, err := proto.Marshal(kademliaMessage)
@@ -85,24 +84,4 @@ func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessag
 	//logrus.Infof("Sending message with RPC ID %x to %s", kademliaMessage.RPCId, addr.String())
 	kn.Node.Send(addr, rpc, marshalledMsg)
 	return nil
-}
-
-func (kn *KademliaNode) DefaultKademliaMessage(body []byte) *rpc_handlers.KademliaMessage {
-	rpcId := generateId()
-	ownId := kn.ID
-
-	//logrus.Infof("Generated new RPC ID %x for node %s", id.ToBytes(), ownId.ToString())
-
-	return rpc_handlers.NewKademliaMessage(rpcId.ToBytes(), ownId.ToBytes(), ownId.ToBytes())
-}
-
-func generateId() utils.BitArray {
-	id := utils.NewBitArray(160)
-	// Generate a random 160-bit ID
-	for i := 0; i < 160; i++ {
-		if rand.Intn(2) == 1 {
-			id.Set(i, true)
-		}
-	}
-	return id
 }
