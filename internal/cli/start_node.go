@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
@@ -88,18 +87,6 @@ var StartNodeCmd = &cobra.Command{
 			if err != nil {
 				cmd.Println("Failed to encode node info:", err)
 				return
-			}
-		}()
-
-		// Wait 30 seconds, then ping node 1 and print if you get a response
-		go func() {
-			time.Sleep(30 * time.Second)
-
-			resp, err := newNode.SendAndAwaitResponse("ping", network.Address{IP: "node_11", Port: 8012}, common.DefaultKademliaMessage(newNode.ID, nil))
-			if err != nil {
-				cmd.Println("Error: ", err)
-			} else {
-				cmd.Println("Received response from node_9:", resp)
 			}
 		}()
 
