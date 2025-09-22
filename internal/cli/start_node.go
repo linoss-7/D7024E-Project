@@ -21,7 +21,7 @@ func init() {
 var StartNodeCmd = &cobra.Command{
 	Use:   "start_node",
 	Short: "Start a new node",
-	Long:  "Start a new kademlia node in a UDP network",
+	Long:  "Start a new kademlia node in an UDP network",
 	Run: func(cmd *cobra.Command, args []string) {
 		net := network.NewUDPNetwork()
 		port := args[0]
