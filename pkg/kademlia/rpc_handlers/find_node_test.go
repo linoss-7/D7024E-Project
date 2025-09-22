@@ -302,7 +302,7 @@ type StoringRPCSender struct {
 	messages map[string][]byte
 }
 
-func (s *StoringRPCSender) Send(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
+func (s *StoringRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
 	s.messages[rpc] = kademliaMessage.Body
 	return nil
 }

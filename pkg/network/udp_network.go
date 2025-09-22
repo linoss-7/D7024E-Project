@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"sync"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type udpNetwork struct {
@@ -52,6 +54,16 @@ func (n *udpNetwork) Dial(addr Address) (Connection, error) {
 		return nil, errors.New("Error creating UDP socket:" + err.Error())
 	}
 
+	// If there are any listeners, add the first one as a reply address
+
+	if len(n.listeners) > 0 {
+		var replyAddr Address
+		for k := range n.listeners {
+			replyAddr = k
+			break
+		}
+		return &udpConnection{replyAddr: replyAddr, addr: addr, network: n, soc: soc}, nil
+	}
 	return &udpConnection{addr: addr, network: n, soc: soc}, nil
 }
 
@@ -73,12 +85,13 @@ func (n *udpNetwork) Heal() {
 }
 
 type udpConnection struct {
-	addr    Address
-	network *udpNetwork
-	recvCh  chan Message
-	mu      sync.RWMutex
-	closed  bool
-	soc     *net.UDPConn
+	replyAddr Address
+	addr      Address
+	network   *udpNetwork
+	recvCh    chan Message
+	mu        sync.RWMutex
+	closed    bool
+	soc       *net.UDPConn
 }
 
 func (c *udpConnection) Send(msg Message) error {
@@ -98,12 +111,26 @@ func (c *udpConnection) Send(msg Message) error {
 		return errors.New("Invalid address:" + err.Error())
 	}
 
+	udpMessage := UDPMessage{
+		FromIP:   c.replyAddr.IP,
+		FromPort: int32(c.replyAddr.Port),
+		ToIP:     msg.To.IP,
+		ToPort:   int32(msg.To.Port),
+		Payload:  msg.Payload,
+	}
+
+	payload, err := proto.Marshal(&udpMessage)
+
+	if err != nil {
+		return errors.New("Error marshalling UDP message:" + err.Error())
+	}
+
 	if c.soc.RemoteAddr() != nil {
 		// Pre-connected socket (DialUDP)
-		_, err = c.soc.Write(msg.Payload)
+		_, err = c.soc.Write(payload)
 	} else {
 		// Not connected (ListenUDP)
-		_, err = c.soc.WriteToUDP(msg.Payload, udpAddr)
+		_, err = c.soc.WriteToUDP(payload, udpAddr)
 	}
 
 	//return errors.New("Sent to udp:" + udpAddr.String())
@@ -122,17 +149,30 @@ func (c *udpConnection) listen() {
 		if c.closed {
 			return
 		}
-		n, addr, err := c.soc.ReadFromUDP(buf)
+		n, _, err := c.soc.ReadFromUDP(buf)
 		if err != nil {
 			log.Printf("Error reading from UDP socket: %v", err)
 			continue
 		}
-		var msg Message
-		msg.From = Address{IP: addr.IP.String(), Port: addr.Port}
-		msg.To = c.addr
-		msg.Payload = make([]byte, n)
-		copy(msg.Payload, buf[:n])
-		msg.Network = c.network
+		var UDPMsg UDPMessage
+		if err := proto.Unmarshal(buf[:n], &UDPMsg); err != nil {
+			log.Printf("Error unmarshalling UDP message: %v", err)
+			continue
+		}
+
+		var msg = Message{
+			From: Address{
+				IP:   UDPMsg.FromIP,
+				Port: int(UDPMsg.FromPort),
+			},
+			To: Address{
+				IP:   UDPMsg.ToIP,
+				Port: int(UDPMsg.ToPort),
+			},
+			Payload: make([]byte, len(UDPMsg.Payload)),
+		}
+
+		copy(msg.Payload, UDPMsg.Payload)
 
 		c.mu.RLock()
 		ch := c.recvCh

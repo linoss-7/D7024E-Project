@@ -4,6 +4,8 @@ package common;
 
 import "node_info_message.proto";
 
+// protoc --proto_path=proto --go_out=pkg/kademlia/common node_info_message_list.proto  Run this from root directory if you need to regenerate
+
 option go_package = "./;common";
 
 message NodeInfoMessageList {

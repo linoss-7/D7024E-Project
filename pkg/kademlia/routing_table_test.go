@@ -441,7 +441,7 @@ func (m *mockRPCSender) SendAndAwaitResponse(rpc string, address network.Address
 
 	// RPCId []byte, SenderId []byte, Body []byte
 }
-func (m *mockRPCSender) Send(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
+func (m *mockRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
 	return nil
 }
 
@@ -450,6 +450,6 @@ type mockNoResponseRPCSender struct{}
 func (m *mockNoResponseRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) (*common.KademliaMessage, error) {
 	return nil, fmt.Errorf("no response")
 }
-func (m *mockNoResponseRPCSender) Send(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
+func (m *mockNoResponseRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
 	return nil
 }

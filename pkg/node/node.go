@@ -114,7 +114,7 @@ func (n *Node) Start() {
 
 			if exists {
 				for _, handler := range handler {
-					//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
+					log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
 					if err := handler.Handler(msg); err != nil {
 						log.Printf("Handler error: %v", err)
 					}

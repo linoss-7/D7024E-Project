@@ -71,7 +71,7 @@ func (fnh *FindNodeHandler) Handle(msg network.Message) error {
 	addr := msg.From
 
 	// Send response back to the requester
-	fnh.rpcSender.Send("reply", addr, replyMsg)
+	fnh.rpcSender.SendRPC("reply", addr, replyMsg)
 	//logrus.Infof("Node %s handled find_node from %s, replied with %d nodes", fnh.table.OwnerNodeInfo.ID.ToString(), addr.String(), len(closest))
 	return nil
 }

@@ -13,8 +13,10 @@ import (
 )
 
 type KademliaNode struct {
-	Node *node.Node
-	ID   utils.BitArray
+	Node         *node.Node
+	ID           utils.BitArray
+	RoutingTable *common.RoutingTable
+	Value        map[*utils.BitArray][]common.DataObject
 }
 
 func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArray) (*KademliaNode, error) {
