@@ -1,13 +1,16 @@
 package cli
 
 import (
-	"fmt"
-	"math/rand"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
-	"time"
 
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia"
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
-	"github.com/linoss-7/D7024E-Project/pkg/node"
+	"github.com/linoss-7/D7024E-Project/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +21,7 @@ func init() {
 var StartNodeCmd = &cobra.Command{
 	Use:   "start_node",
 	Short: "Start a new node",
-	Long:  "Start a new node in a UDP network",
+	Long:  "Start a new kademlia node in an UDP network",
 	Run: func(cmd *cobra.Command, args []string) {
 		net := network.NewUDPNetwork()
 		port := args[0]
@@ -27,37 +30,65 @@ var StartNodeCmd = &cobra.Command{
 			cmd.Println("Invalid port number")
 			return
 		}
+
+		cmd.Println("Starting node on port", iport)
 		addr := network.Address{
-			IP:   "0.0.0.0",
+			IP:   "node_" + strconv.Itoa(iport-8001),
 			Port: iport,
 		}
-		newNode, err := node.NewNode(net, addr)
+
+		id := utils.NewRandomBitArray(160)
+		newNode, err := kademlia.NewKademliaNode(net, addr, *id)
 		if err != nil {
 			cmd.Println("Failed to create node:", err)
 			return
 		}
 
-		newNode.Handle("message", func(msg network.Message) error {
-			return nil
-		})
+		// Register ping and find_node handlers
 
-		waitSeconds := rand.Intn(21) + 10 // random int between 10 and 30
-		newNode.Start()
-		// Wait for random seconds, then send a message to next node (if any)
-		time.AfterFunc(time.Duration(waitSeconds)*time.Second, func() {
-			if iport < 8049 {
-				nextAddr := network.Address{
-					IP:   fmt.Sprintf("node_%d", (iport-8001)+1), // Adjust index as needed
-					Port: iport + 1,
-				}
-				err := newNode.SendString(nextAddr, "message", "Hello from "+addr.String())
-				if err != nil {
-					cmd.Println("Failed to send message:", err)
-					return
-				}
+		pingHandler := rpc_handlers.NewPingHandler(newNode.Node, newNode.ID)
+		findNodeHandler := rpc_handlers.NewFindNodeHandler(newNode, newNode.RoutingTable)
+
+		// Register handlers to the node in the kademlia_node struct
+
+		newNode.Node.Handle("ping", pingHandler.Handle)
+		newNode.Node.Handle("find_node", findNodeHandler.Handle)
+
+		// Save the ip and port to json file so commands know where to send
+
+		go func() {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				cmd.Println("Failed to get home directory:", err)
+				return
 			}
-		})
-		//cmd.Printf("Node started at %s. Listening for messages...\n", addr.String())
+
+			jsonFolderPath := filepath.Join(home, ".kademlia", "nodes")
+			err = os.MkdirAll(jsonFolderPath, 0755)
+			if err != nil {
+				cmd.Println("Failed to create .kademlia directory:", err)
+				return
+			}
+			file, err := os.Create(filepath.Join(jsonFolderPath, "node_info.json"))
+			if err != nil {
+				cmd.Println("Failed to create node file:", err)
+				return
+			}
+			defer file.Close()
+
+			encoder := json.NewEncoder(file)
+			nodeInfo := common.NodeInfo{
+				ID:   newNode.ID,
+				IP:   addr.IP,
+				Port: addr.Port,
+			}
+
+			err = encoder.Encode(nodeInfo)
+			if err != nil {
+				cmd.Println("Failed to encode node info:", err)
+				return
+			}
+		}()
 
 		select {} // Block forever, keeping the node alive
 

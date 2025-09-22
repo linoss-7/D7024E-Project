@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package network;
+
+option go_package = "./;network";
+
+// protoc --proto_path=proto --go_out=pkg/kademlia/common kademlia_message.proto  Run this from root directory if you need to regenerate
+
+message UDPMessage {
+    string fromIP = 1;
+    int32 fromPort = 2;
+    string toIP = 3;
+    int32 toPort = 4;
+    bytes payload = 5;
+}

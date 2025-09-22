@@ -26,9 +26,14 @@ coverage:
 	./buildtools/coverage.sh
 	./buildtools/codecov
 
-test: 
-	@cd pkg/helloworld; go test -v --race
+test:
 	@cd pkg/kademlia; go test -v --race
+	@cd pkg/kademlia/common; go test -v --race
+	@cd pkg/kademlia/rpc_handlers; go test -v --race
+	@cd pkg/network; go test -v --race
+	@cd pkg/node; go test -v --race
+	@cd pkg/utils; go test -v --race
+
 
 install:
 	cp ./bin/$(BINARY_NAME) /usr/local/bin

@@ -6,5 +6,5 @@ import (
 
 type IRPCSender interface {
 	SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *KademliaMessage) (*KademliaMessage, error)
-	Send(rpc string, address network.Address, kademliaMessage *KademliaMessage) error
+	SendRPC(rpc string, address network.Address, kademliaMessage *KademliaMessage) error
 }

@@ -4,6 +4,8 @@ package common;
 
 option go_package = "./;common";
 
+// protoc --proto_path=proto --go_out=pkg/kademlia/common node_info_message.proto   Run this from root directory if you need to regenerate
+
 message NodeInfoMessage {
     string IP = 1;
     int32 Port = 2;
