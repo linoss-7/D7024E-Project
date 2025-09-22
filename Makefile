@@ -26,13 +26,13 @@ coverage:
 	./buildtools/coverage.sh
 	./buildtools/codecov
 
-test: 
+test:
 	@cd pkg/kademlia; go test -v --race
-	@cd pkg/node; go test -v --race
-	@cd pkg/network; go test -v --race
-	@cd pkg/utils; go test -v --race
-	@cd pkg/kademlia/rpc_handlers; go test -v --race
 	@cd pkg/kademlia/common; go test -v --race
+	@cd pkg/kademlia/rpc_handlers; go test -v --race
+	@cd pkg/network; go test -v --race
+	@cd pkg/node; go test -v --race
+	@cd pkg/utils; go test -v --race
 
 
 install:

@@ -145,8 +145,10 @@ func (c *udpConnection) Send(msg Message) error {
 func (c *udpConnection) listen() {
 	buf := make([]byte, 1024)
 	for {
-
-		if c.closed {
+		c.mu.RLock()
+		closed := c.closed
+		c.mu.RUnlock()
+		if closed {
 			return
 		}
 		n, _, err := c.soc.ReadFromUDP(buf)
