@@ -74,7 +74,7 @@ var PingCmd = &cobra.Command{
 			return
 		}
 
-		cmd.Println("Ping successful! Response RPC ID:", resp.RPCId)
+		cmd.Println("Ping successful! Response RPC ID:", resp.RPCId, " from ", resp.SenderId)
 
 	},
 }
