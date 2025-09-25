@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package network;
+package proto_gen;
 
-option go_package = "./;network";
+option go_package = "./;proto_gen";
 
 // protoc --proto_path=proto --go_out=pkg/kademlia/common kademlia_message.proto  Run this from root directory if you need to regenerate
 

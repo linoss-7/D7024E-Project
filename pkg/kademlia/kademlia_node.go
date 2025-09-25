@@ -8,6 +8,7 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/node"
+	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 	"google.golang.org/protobuf/proto"
 )
@@ -35,14 +36,14 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 	}, nil
 }
 
-func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) (*common.KademliaMessage, error) {
+func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
 	// Send a message and block until a message with the same RPCId is received
-	responseCh := make(chan *common.KademliaMessage)
+	responseCh := make(chan *proto_gen.KademliaMessage)
 	errCh := make(chan error)
 
 	// Create a new message handler for the response
 	handlerFunc := func(msg network.Message) error {
-		var respMsg common.KademliaMessage
+		var respMsg proto_gen.KademliaMessage
 		payload := msg.Payload[6:] // Exclude "reply:" prefix
 		if err := proto.Unmarshal(payload, &respMsg); err != nil {
 			errCh <- fmt.Errorf("failed to unmarshal response: %v", err)
@@ -73,7 +74,7 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 	}
 }
 
-func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessage *common.KademliaMessage) error {
+func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessage *proto_gen.KademliaMessage) error {
 	kademliaMessage.SenderId = kn.ID.ToBytes()
 
 	marshalledMsg, err := proto.Marshal(kademliaMessage)

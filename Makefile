@@ -23,8 +23,15 @@ push:
 	docker push $(PUSH_IMAGE)
 
 coverage:
-	./buildtools/coverage.sh
-	./buildtools/codecov
+	@go test -coverprofile=coverage.out \
+    ./pkg/kademlia \
+    ./pkg/kademlia/common \
+    ./pkg/kademlia/rpc_handlers \
+    ./pkg/network \
+    ./pkg/node \
+    ./pkg/utils
+
+	@go tool cover -func=coverage.out
 
 test:
 	@cd pkg/kademlia; go test -v --race
@@ -33,7 +40,6 @@ test:
 	@cd pkg/network; go test -v --race
 	@cd pkg/node; go test -v --race
 	@cd pkg/utils; go test -v --race
-
 
 install:
 	cp ./bin/$(BINARY_NAME) /usr/local/bin

@@ -1,4 +1,4 @@
-package kademlia
+package common
 
 import (
 	"fmt"
@@ -7,9 +7,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
-	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 )
 
@@ -17,26 +16,26 @@ func TestFullTable(t *testing.T) {
 
 	rpcSender := &mockRPCSender{}
 
-	nodeInfo := common.NodeInfo{
+	nodeInfo := NodeInfo{
 		IP:   "localhost",
 		Port: 8000,
 		ID:   *utils.NewBitArray(160),
 	}
 
-	rt := common.NewRoutingTable(rpcSender, nodeInfo, 4)
+	rt := NewRoutingTable(rpcSender, nodeInfo, 4)
 
-	table := make([][]common.NodeInfo, 0)
+	table := make([][]NodeInfo, 0)
 
 	// Fill the table with nodes, each bucket should contain random nodes within the range 2^i to 2^(i+1)
 	for i := 0; i < 160; i++ {
-		bucket := make([]common.NodeInfo, 0)
+		bucket := make([]NodeInfo, 0)
 		for j := 0; j < 4; j++ {
 			// Generate a random ID within the range of the i-th bucket
 			id := generateValidId(i)
 
 			//log.Printf("Generated ID: %s for bucket %d, index %d\n", id.ToString(), i, j)
 
-			nodeInfo := common.NodeInfo{
+			nodeInfo := NodeInfo{
 				IP:   "localhost",
 				Port: 8000 + j,
 				ID:   *id,
@@ -84,7 +83,7 @@ func TestFullTable(t *testing.T) {
 
 func TestNonFullBuckets(t *testing.T) {
 	mockSender := &mockRPCSender{}
-	nodeInfo := common.NodeInfo{
+	nodeInfo := NodeInfo{
 		IP:   "localhost",
 		Port: 8000,
 		ID:   *utils.NewBitArray(160),
@@ -92,19 +91,19 @@ func TestNonFullBuckets(t *testing.T) {
 
 	// Mock an rpc sender that always gives correct response
 
-	rt := common.NewRoutingTable(mockSender, nodeInfo, 4)
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
 
-	table := make([][]common.NodeInfo, 0)
+	table := make([][]NodeInfo, 0)
 
 	// Initialize empty buckets
 	for i := 0; i < 160; i++ {
-		bucket := make([]common.NodeInfo, 0)
+		bucket := make([]NodeInfo, 0)
 		table = append(table, bucket)
 	}
 
 	// Add 100 nodes to their appriopriate buckets and keep track of the 4 smallest
 	type candidate struct {
-		info     common.NodeInfo
+		info     NodeInfo
 		distance *big.Int
 	}
 
@@ -114,7 +113,7 @@ func TestNonFullBuckets(t *testing.T) {
 		iVal := rand.Intn(159)
 		id := generateValidId(iVal)
 
-		nodeInfo := common.NodeInfo{
+		nodeInfo := NodeInfo{
 			IP:   "localhost",
 			Port: 8000 + i,
 			ID:   *id,
@@ -190,31 +189,31 @@ func TestNonFullBuckets(t *testing.T) {
 
 func TestFewerThanKNodes(t *testing.T) {
 
-	nodeInfo := common.NodeInfo{
+	nodeInfo := NodeInfo{
 		IP:   "localhost",
 		Port: 8000,
 		ID:   *utils.NewBitArray(160),
 	}
 
 	mockSender := &mockRPCSender{}
-	rt := common.NewRoutingTable(mockSender, nodeInfo, 4)
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
 
-	table := make([][]common.NodeInfo, 0)
+	table := make([][]NodeInfo, 0)
 
 	// Initialize empty buckets
 	for i := 0; i < 160; i++ {
-		bucket := make([]common.NodeInfo, 0)
+		bucket := make([]NodeInfo, 0)
 		table = append(table, bucket)
 	}
 
-	nodes := make([]common.NodeInfo, 0)
+	nodes := make([]NodeInfo, 0)
 	// Add 2 nodes to their appriopriate buckets
 	for i := 0; i < 2; i++ {
 		// Generate a random i
 		iVal := rand.Intn(159)
 		id := generateValidId(iVal)
 
-		nodeInfo := common.NodeInfo{
+		nodeInfo := NodeInfo{
 			IP:   "localhost",
 			Port: 8000 + i,
 			ID:   *id,
@@ -258,7 +257,7 @@ func TestAddingSingleNode(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		// Generate a random node ID
-		nodeInfo := common.NodeInfo{
+		nodeInfo := NodeInfo{
 			IP:   "localhost",
 			Port: 8000,
 			ID:   *utils.NewRandomBitArray(160),
@@ -266,10 +265,10 @@ func TestAddingSingleNode(t *testing.T) {
 
 		mockSender := &mockRPCSender{}
 
-		rt := common.NewRoutingTable(mockSender, nodeInfo, 4)
+		rt := NewRoutingTable(mockSender, nodeInfo, 4)
 
 		// Generate another random ID
-		anotherNodeInfo := common.NodeInfo{
+		anotherNodeInfo := NodeInfo{
 			IP:   "localhost",
 			Port: 8001,
 			ID:   *utils.NewRandomBitArray(160),
@@ -292,9 +291,9 @@ func TestAddingSingleNode(t *testing.T) {
 }
 
 func TestRespondingFullNode(t *testing.T) {
-	firstFour := make([]common.NodeInfo, 0)
+	firstFour := make([]NodeInfo, 0)
 
-	nodeInfo := common.NodeInfo{
+	nodeInfo := NodeInfo{
 		IP:   "localhost",
 		Port: 8000,
 		ID:   *utils.NewBitArray(160),
@@ -302,7 +301,7 @@ func TestRespondingFullNode(t *testing.T) {
 
 	mockSender := &mockRPCSender{}
 
-	rt := common.NewRoutingTable(mockSender, nodeInfo, 4)
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
 
 	// Generate 100 nodes in the same bucket
 
@@ -310,7 +309,7 @@ func TestRespondingFullNode(t *testing.T) {
 	bucket := rand.Intn(154) + 5
 
 	for i := 0; i < 100; i++ {
-		nodeInfo := common.NodeInfo{
+		nodeInfo := NodeInfo{
 			IP:   "localhost",
 			Port: 8000 + i,
 			ID:   *generateValidId(bucket),
@@ -347,9 +346,9 @@ func TestRespondingFullNode(t *testing.T) {
 }
 
 func TestNonRespondingFullNode(t *testing.T) {
-	lastFour := make([]common.NodeInfo, 0)
+	lastFour := make([]NodeInfo, 0)
 
-	nodeInfo := common.NodeInfo{
+	nodeInfo := NodeInfo{
 		IP:   "localhost",
 		Port: 8000,
 		ID:   *utils.NewBitArray(160),
@@ -357,14 +356,14 @@ func TestNonRespondingFullNode(t *testing.T) {
 
 	mockSender := &mockNoResponseRPCSender{}
 
-	rt := common.NewRoutingTable(mockSender, nodeInfo, 4)
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
 
 	// Generate 100 nodes in the same bucket
 
 	// Select a bucket greater than 5
 	bucket := rand.Intn(154) + 5
 	for i := 0; i < 100; i++ {
-		nodeInfo := common.NodeInfo{
+		nodeInfo := NodeInfo{
 			IP:   "localhost",
 			Port: 8000 + i,
 			ID:   *generateValidId(bucket),
@@ -430,26 +429,32 @@ func generateValidId(i int) *utils.BitArray {
 
 type mockRPCSender struct{}
 
-func (m *mockRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) (*common.KademliaMessage, error) {
+func (m *mockRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
 	// return a reponse in the opposite direction
 
 	// Make an arbitary rpc id and node ids
 	Id := make([]byte, 160)
 	SenderId := make([]byte, 160)
 	copy(SenderId, address.IP)
-	return rpc_handlers.NewKademliaMessage(Id, SenderId, kademliaMessage.Body), nil
+	km := proto_gen.KademliaMessage{
+		RPCId:    Id,
+		SenderId: SenderId,
+		Body:     []byte{},
+	}
+
+	return &km, nil
 
 	// RPCId []byte, SenderId []byte, Body []byte
 }
-func (m *mockRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
+func (m *mockRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) error {
 	return nil
 }
 
 type mockNoResponseRPCSender struct{}
 
-func (m *mockNoResponseRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) (*common.KademliaMessage, error) {
+func (m *mockNoResponseRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
 	return nil, fmt.Errorf("no response")
 }
-func (m *mockNoResponseRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
+func (m *mockNoResponseRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) error {
 	return nil
 }
