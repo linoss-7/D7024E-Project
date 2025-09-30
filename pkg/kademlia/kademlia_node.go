@@ -19,7 +19,8 @@ type KademliaNode struct {
 	Value        map[*utils.BitArray][]common.DataObject
 }
 
-func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArray) (*KademliaNode, error) {
+func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArray, k int, alpha int) (*KademliaNode, error) {
+	// Update to account for k and alpha
 
 	node, err := node.NewNode(net, addr)
 
@@ -71,6 +72,26 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 	case <-time.After(5 * time.Second):
 		return nil, fmt.Errorf("timeout waiting for response")
 	}
+}
+
+func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) ([]common.DataObject, error) {
+	// Dummy implementation, always returns not implemented
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (kn *KademliaNode) Join(address network.Address) error {
+	// Dummy implementation, always returns not implemented
+	return fmt.Errorf("not implemented")
+}
+
+func (kn *KademliaNode) Store(value common.DataObject) error {
+	// Dummy implementation, always returns not implemented
+	return fmt.Errorf("not implemented")
+}
+
+func (kn *KademliaNode) StoreInNetwork(value string) ([]common.NodeInfo, error) {
+	// Dummy implementation, always returns not implemented
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessage *common.KademliaMessage) error {

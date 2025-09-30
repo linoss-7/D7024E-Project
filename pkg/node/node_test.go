@@ -10,7 +10,7 @@ import (
 
 func TestNodeSimple(t *testing.T) {
 	// Create network and nodes
-	net := network.NewMockNetwork()
+	net := network.NewMockNetwork(0.0)
 	alice, _ := NewNode(net, network.Address{IP: "127.0.0.1", Port: 8080})
 	bob, _ := NewNode(net, network.Address{IP: "127.0.0.1", Port: 8081})
 	// Channel for synchronization
@@ -43,7 +43,7 @@ func TestNodeSimple(t *testing.T) {
 
 func TestHandlers(t *testing.T) {
 	// Create network and nodes
-	net := network.NewMockNetwork()
+	net := network.NewMockNetwork(0.0)
 	alice, _ := NewNode(net, network.Address{IP: "127.0.0.1", Port: 8080})
 	bob, _ := NewNode(net, network.Address{IP: "127.0.0.1", Port: 8081})
 	// Channel for synchronization
