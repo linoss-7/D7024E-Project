@@ -11,7 +11,7 @@ import (
 
 func TestPing_ValidRequest(t *testing.T) {
 	// Set up mock sender to capture sent messages
-	net := network.NewMockNetwork()
+	net := network.NewMockNetwork(0.0)
 
 	rpcSender := &StoringRPCSender{messages: make(map[string][]byte)}
 

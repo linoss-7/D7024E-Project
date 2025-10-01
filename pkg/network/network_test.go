@@ -3,7 +3,7 @@ package network
 import "testing"
 
 func TestNetwork_ReplyString(t *testing.T) {
-	net := NewMockNetwork()
+	net := NewMockNetwork(0.0)
 
 	// Make a new message
 	msg := Message{

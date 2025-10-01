@@ -90,9 +90,14 @@ func (kn *KademliaNode) Store(value common.DataObject) error {
 	return fmt.Errorf("not implemented")
 }
 
-func (kn *KademliaNode) StoreInNetwork(value string) ([]common.NodeInfo, error) {
+func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 	// Dummy implementation, always returns not implemented
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (kn *KademliaNode) Forget(id *utils.BitArray) error {
+	// Dummy implementation, always returns not implemented
+	return fmt.Errorf("not implemented")
 }
 
 func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessage *proto_gen.KademliaMessage) error {
