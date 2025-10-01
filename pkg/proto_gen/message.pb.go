@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: message.proto
 
-package network
+package proto_gen
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -101,15 +101,14 @@ var File_message_proto protoreflect.FileDescriptor
 
 const file_message_proto_rawDesc = "" +
 	"\n" +
-	"\rmessage.proto\x12\anetwork\"\x86\x01\n" +
+	"\rmessage.proto\x12\tproto_gen\"\x86\x01\n" +
 	"\n" +
 	"UDPMessage\x12\x16\n" +
 	"\x06fromIP\x18\x01 \x01(\tR\x06fromIP\x12\x1a\n" +
 	"\bfromPort\x18\x02 \x01(\x05R\bfromPort\x12\x12\n" +
 	"\x04toIP\x18\x03 \x01(\tR\x04toIP\x12\x16\n" +
 	"\x06toPort\x18\x04 \x01(\x05R\x06toPort\x12\x18\n" +
-	"\apayload\x18\x05 \x01(\fR\apayloadB\fZ\n" +
-	"./;networkb\x06proto3"
+	"\apayload\x18\x05 \x01(\fR\apayloadB\x0eZ\f./;proto_genb\x06proto3"
 
 var (
 	file_message_proto_rawDescOnce sync.Once
@@ -125,7 +124,7 @@ func file_message_proto_rawDescGZIP() []byte {
 
 var file_message_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_message_proto_goTypes = []any{
-	(*UDPMessage)(nil), // 0: network.UDPMessage
+	(*UDPMessage)(nil), // 0: proto_gen.UDPMessage
 }
 var file_message_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type

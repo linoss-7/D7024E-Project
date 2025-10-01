@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -111,7 +112,7 @@ func (c *udpConnection) Send(msg Message) error {
 		return errors.New("Invalid address:" + err.Error())
 	}
 
-	udpMessage := UDPMessage{
+	udpMessage := proto_gen.UDPMessage{
 		FromIP:   c.replyAddr.IP,
 		FromPort: int32(c.replyAddr.Port),
 		ToIP:     msg.To.IP,
@@ -145,18 +146,13 @@ func (c *udpConnection) Send(msg Message) error {
 func (c *udpConnection) listen() {
 	buf := make([]byte, 1024)
 	for {
-		c.mu.RLock()
-		closed := c.closed
-		c.mu.RUnlock()
-		if closed {
-			return
-		}
+
 		n, _, err := c.soc.ReadFromUDP(buf)
 		if err != nil {
 			log.Printf("Error reading from UDP socket: %v", err)
 			continue
 		}
-		var UDPMsg UDPMessage
+		var UDPMsg proto_gen.UDPMessage
 		if err := proto.Unmarshal(buf[:n], &UDPMsg); err != nil {
 			log.Printf("Error unmarshalling UDP message: %v", err)
 			continue
@@ -176,9 +172,17 @@ func (c *udpConnection) listen() {
 
 		copy(msg.Payload, UDPMsg.Payload)
 
-		c.mu.RLock()
+		c.mu.Lock()
+		closed := c.closed
 		ch := c.recvCh
-		c.mu.RUnlock()
+		c.mu.Unlock()
+		if closed {
+			// Close channel and return
+			if ch != nil {
+				close(ch)
+			}
+			return
+		}
 
 		if ch != nil {
 			select {
@@ -200,6 +204,14 @@ func (c *udpConnection) Recv() (Message, error) {
 	ch := c.recvCh
 	c.mu.RUnlock()
 
+	// Check if network is partitioned
+	c.network.mu.RLock()
+	if c.network.partitions[c.addr] {
+		c.network.mu.RUnlock()
+		return Message{}, errors.New("network partitioned")
+	}
+	c.network.mu.RUnlock()
+
 	msg, ok := <-ch
 	if !ok {
 		return Message{}, errors.New("Connection closed")
@@ -208,6 +220,9 @@ func (c *udpConnection) Recv() (Message, error) {
 }
 
 func (c *udpConnection) Close() error {
+
+	// Just set closed parameter and let listen() exit gracefully
+
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -216,13 +231,5 @@ func (c *udpConnection) Close() error {
 	c.closed = true
 	c.mu.Unlock()
 
-	c.network.mu.Lock()
-	defer c.network.mu.Unlock()
-
-	if c.recvCh != nil {
-		close(c.recvCh)
-		delete(c.network.listeners, c.addr)
-		c.recvCh = nil
-	}
 	return nil
 }

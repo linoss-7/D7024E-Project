@@ -9,6 +9,7 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 )
 
@@ -35,8 +36,13 @@ func TestPingAndResponse(t *testing.T) {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
 
+	bobInfo := common.NodeInfo{
+		ID:   *bobId,
+		IP:   "127.0.0.1",
+		Port: 8001,
+	}
 	// Define ping handler
-	pingHandler := rpc_handlers.NewPingHandler(alice.Node, alice.ID)
+	pingHandler := rpc_handlers.NewPingHandler(bob, bobInfo)
 
 	// Register ping handler to node
 	bob.Node.Handle("ping", pingHandler.Handle)
@@ -78,13 +84,19 @@ func TestMultiplePings(t *testing.T) {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
 
+	bobInfo := common.NodeInfo{
+		ID:   *bobId,
+		IP:   "127.0.0.1",
+		Port: 8001,
+	}
+
 	// Define ping handler
-	pingHandler := rpc_handlers.NewPingHandler(bob.Node, bob.ID)
+	pingHandler := rpc_handlers.NewPingHandler(bob, bobInfo)
 
 	// Register ping handler to node
 	bob.Node.Handle("ping", pingHandler.Handle)
 
-	respCh := make(chan *common.KademliaMessage, 10)
+	respCh := make(chan *proto_gen.KademliaMessage, 10)
 	errCh := make(chan error)
 
 	var wg sync.WaitGroup
@@ -125,7 +137,7 @@ func TestMultiplePings(t *testing.T) {
 	}
 
 	// Store the responses from goroutines
-	var responses []*common.KademliaMessage
+	var responses []*proto_gen.KademliaMessage
 	for i := 0; i < 10; i++ {
 		select {
 		case resp := <-respCh:

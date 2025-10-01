@@ -3,6 +3,7 @@ package rpc_handlers
 import (
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 	"google.golang.org/protobuf/proto"
 )
@@ -23,7 +24,7 @@ func (fnh *FindNodeHandler) Handle(msg network.Message) error {
 
 	// Unmarshal message to KademliaMessage
 
-	var km common.KademliaMessage
+	var km proto_gen.KademliaMessage
 	payload := msg.Payload[10:] // Exclude "find_node:" prefix
 	if err := proto.Unmarshal(payload, &km); err != nil {
 		return err
@@ -31,7 +32,7 @@ func (fnh *FindNodeHandler) Handle(msg network.Message) error {
 
 	// Unmarshal body to node info
 
-	var nodeInfo common.NodeInfoMessage
+	var nodeInfo proto_gen.NodeInfoMessage
 	if err := proto.Unmarshal(km.Body, &nodeInfo); err != nil {
 		return err
 	}
@@ -43,10 +44,10 @@ func (fnh *FindNodeHandler) Handle(msg network.Message) error {
 
 	// Convert closest nodes to NodeInfoMessageList
 
-	nodeInfoList := &common.NodeInfoMessageList{}
+	nodeInfoList := &proto_gen.NodeInfoMessageList{}
 
 	for _, n := range closest {
-		nodeInfoList.Nodes = append(nodeInfoList.Nodes, &common.NodeInfoMessage{
+		nodeInfoList.Nodes = append(nodeInfoList.Nodes, &proto_gen.NodeInfoMessage{
 			ID:   n.ID.ToBytes(),
 			IP:   n.IP,
 			Port: int32(n.Port),
@@ -61,7 +62,7 @@ func (fnh *FindNodeHandler) Handle(msg network.Message) error {
 	}
 
 	// Create reply KademliaMessage
-	replyMsg := &common.KademliaMessage{
+	replyMsg := &proto_gen.KademliaMessage{
 		SenderId: fnh.table.OwnerNodeInfo.ID.ToBytes(),
 		Body:     data,
 	}

@@ -1,13 +1,17 @@
 syntax = "proto3";
 
-package common;
+package proto_gen;
+
+//option go_package = "./;proto_gen";
 
 import "node_info_message.proto";
 
+
+
 // protoc --proto_path=proto --go_out=pkg/kademlia/common node_info_message_list.proto  Run this from root directory if you need to regenerate
 
-option go_package = "./;common";
+option go_package = "./;proto_gen";
 
 message NodeInfoMessageList {
-    repeated common.NodeInfoMessage nodes = 1;
+    repeated proto_gen.NodeInfoMessage nodes = 1;
 }

@@ -48,9 +48,15 @@ var StartNodeCmd = &cobra.Command{
 			return
 		}
 
+		newNodeInfo := common.NodeInfo{
+			ID:   *id,
+			IP:   addr.IP,
+			Port: addr.Port,
+		}
+
 		// Register ping and find_node handlers
 
-		pingHandler := rpc_handlers.NewPingHandler(newNode.Node, newNode.ID)
+		pingHandler := rpc_handlers.NewPingHandler(newNode, newNodeInfo)
 		findNodeHandler := rpc_handlers.NewFindNodeHandler(newNode, newNode.RoutingTable)
 
 		// Register handlers to the node in the kademlia_node struct

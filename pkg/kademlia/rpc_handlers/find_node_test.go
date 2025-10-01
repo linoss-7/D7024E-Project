@@ -5,6 +5,7 @@ import (
 
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 	"google.golang.org/protobuf/proto"
 )
@@ -45,7 +46,7 @@ func TestValidFindNodeRequest(t *testing.T) {
 
 	// Marshal targetId into NodeInfoMessage
 
-	nodeInfo := &common.NodeInfoMessage{
+	nodeInfo := &proto_gen.NodeInfoMessage{
 		ID:   targetId.ToBytes(),
 		IP:   "localhost",
 		Port: 9000,
@@ -90,7 +91,7 @@ func TestValidFindNodeRequest(t *testing.T) {
 
 	// Unmarshal the response and ensure it contains the 4 nodes in our routing table
 
-	var nodeInfoList common.NodeInfoMessageList
+	var nodeInfoList proto_gen.NodeInfoMessageList
 	if err := proto.Unmarshal(responseData, &nodeInfoList); err != nil {
 		t.Fatalf("Failed to unmarshal NodeInfoMessageList: %v", err)
 	}
@@ -178,7 +179,7 @@ func TestEmptyRoutingTable(t *testing.T) {
 
 	// Marshal targetId into NodeInfoMessage
 
-	nodeInfo := &common.NodeInfoMessage{
+	nodeInfo := &proto_gen.NodeInfoMessage{
 		ID:   targetId.ToBytes(),
 		IP:   "localhost",
 		Port: 9000,
@@ -223,7 +224,7 @@ func TestEmptyRoutingTable(t *testing.T) {
 
 	// Unmarshal the response and ensure it contains 0 nodes
 
-	var nodeInfoList common.NodeInfoMessageList
+	var nodeInfoList proto_gen.NodeInfoMessageList
 	if err := proto.Unmarshal(responseData, &nodeInfoList); err != nil {
 		t.Fatalf("Failed to unmarshal NodeInfoMessageList: %v", err)
 	}
@@ -302,12 +303,12 @@ type StoringRPCSender struct {
 	messages map[string][]byte
 }
 
-func (s *StoringRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) error {
+func (s *StoringRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) error {
 	s.messages[rpc] = kademliaMessage.Body
 	return nil
 }
 
-func (s *StoringRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *common.KademliaMessage) (*common.KademliaMessage, error) {
+func (s *StoringRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
 	s.messages[rpc] = kademliaMessage.Body
-	return &common.KademliaMessage{}, nil
+	return &proto_gen.KademliaMessage{}, nil
 }

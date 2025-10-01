@@ -4,15 +4,14 @@
 // 	protoc        v6.32.1
 // source: kademlia_message.proto
 
-package common
+package proto_gen
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -86,11 +85,11 @@ var File_kademlia_message_proto protoreflect.FileDescriptor
 
 const file_kademlia_message_proto_rawDesc = "" +
 	"\n" +
-	"\x16kademlia_message.proto\x12\x06common\"W\n" +
+	"\x16kademlia_message.proto\x12\tproto_gen\"W\n" +
 	"\x0fKademliaMessage\x12\x14\n" +
 	"\x05RPCId\x18\x01 \x01(\fR\x05RPCId\x12\x1a\n" +
 	"\bSenderId\x18\x02 \x01(\fR\bSenderId\x12\x12\n" +
-	"\x04Body\x18\x03 \x01(\fR\x04BodyB\vZ\t./;commonb\x06proto3"
+	"\x04Body\x18\x03 \x01(\fR\x04BodyB\x0eZ\f./;proto_genb\x06proto3"
 
 var (
 	file_kademlia_message_proto_rawDescOnce sync.Once
@@ -106,7 +105,7 @@ func file_kademlia_message_proto_rawDescGZIP() []byte {
 
 var file_kademlia_message_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_kademlia_message_proto_goTypes = []any{
-	(*KademliaMessage)(nil), // 0: common.KademliaMessage
+	(*KademliaMessage)(nil), // 0: proto_gen.KademliaMessage
 }
 var file_kademlia_message_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type

@@ -4,7 +4,7 @@
 // 	protoc        v6.32.1
 // source: node_info_message_list.proto
 
-package common
+package proto_gen
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -69,9 +69,9 @@ var File_node_info_message_list_proto protoreflect.FileDescriptor
 
 const file_node_info_message_list_proto_rawDesc = "" +
 	"\n" +
-	"\x1cnode_info_message_list.proto\x12\x06common\x1a\x17node_info_message.proto\"D\n" +
-	"\x13NodeInfoMessageList\x12-\n" +
-	"\x05nodes\x18\x01 \x03(\v2\x17.common.NodeInfoMessageR\x05nodesB\vZ\t./;commonb\x06proto3"
+	"\x1cnode_info_message_list.proto\x12\tproto_gen\x1a\x17node_info_message.proto\"G\n" +
+	"\x13NodeInfoMessageList\x120\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x1a.proto_gen.NodeInfoMessageR\x05nodesB\x0eZ\f./;proto_genb\x06proto3"
 
 var (
 	file_node_info_message_list_proto_rawDescOnce sync.Once
@@ -87,11 +87,11 @@ func file_node_info_message_list_proto_rawDescGZIP() []byte {
 
 var file_node_info_message_list_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_node_info_message_list_proto_goTypes = []any{
-	(*NodeInfoMessageList)(nil), // 0: common.NodeInfoMessageList
-	(*NodeInfoMessage)(nil),     // 1: common.NodeInfoMessage
+	(*NodeInfoMessageList)(nil), // 0: proto_gen.NodeInfoMessageList
+	(*NodeInfoMessage)(nil),     // 1: proto_gen.NodeInfoMessage
 }
 var file_node_info_message_list_proto_depIdxs = []int32{
-	1, // 0: common.NodeInfoMessageList.nodes:type_name -> common.NodeInfoMessage
+	1, // 0: proto_gen.NodeInfoMessageList.nodes:type_name -> proto_gen.NodeInfoMessage
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name

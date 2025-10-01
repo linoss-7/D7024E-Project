@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/linoss-7/D7024E-Project/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 )
 
@@ -97,7 +98,7 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 		Port: leastRecent.Port,
 	}
 
-	kademliaMessage := &KademliaMessage{}
+	kademliaMessage := &proto_gen.KademliaMessage{}
 
 	_, err := rt.rpcSender.SendAndAwaitResponse("ping", *address, kademliaMessage)
 
