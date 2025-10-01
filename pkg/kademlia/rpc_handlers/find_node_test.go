@@ -12,7 +12,7 @@ import (
 
 func TestValidFindNodeRequest(t *testing.T) {
 
-	net := network.NewMockNetwork()
+	net := network.NewMockNetwork(0.0)
 
 	selfInfo := common.NodeInfo{
 		ID:   *utils.NewRandomBitArray(160),
@@ -109,7 +109,7 @@ func TestValidFindNodeRequest(t *testing.T) {
 
 func TestInvalidRequest(t *testing.T) {
 
-	net := network.NewMockNetwork()
+	net := network.NewMockNetwork(0.0)
 
 	selfInfo := common.NodeInfo{
 		ID:   *utils.NewRandomBitArray(160),
@@ -156,7 +156,7 @@ func TestInvalidRequest(t *testing.T) {
 
 func TestEmptyRoutingTable(t *testing.T) {
 
-	net := network.NewMockNetwork()
+	net := network.NewMockNetwork(0.0)
 
 	selfInfo := common.NodeInfo{
 		ID:   *utils.NewRandomBitArray(160),
@@ -236,7 +236,7 @@ func TestEmptyRoutingTable(t *testing.T) {
 
 func TestInvalidNodeInfo(t *testing.T) {
 
-	net := network.NewMockNetwork()
+	net := network.NewMockNetwork(0.0)
 
 	selfInfo := common.NodeInfo{
 		ID:   *utils.NewRandomBitArray(160),

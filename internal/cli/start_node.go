@@ -23,6 +23,9 @@ var StartNodeCmd = &cobra.Command{
 	Short: "Start a new node",
 	Long:  "Start a new kademlia node in an UDP network",
 	Run: func(cmd *cobra.Command, args []string) {
+
+		k := 4
+		alpha := 3
 		net := network.NewUDPNetwork()
 		port := args[0]
 		iport, err := strconv.Atoi(port)
@@ -38,7 +41,8 @@ var StartNodeCmd = &cobra.Command{
 		}
 
 		id := utils.NewRandomBitArray(160)
-		newNode, err := kademlia.NewKademliaNode(net, addr, *id)
+
+		newNode, err := kademlia.NewKademliaNode(net, addr, *id, k, alpha)
 		if err != nil {
 			cmd.Println("Failed to create node:", err)
 			return

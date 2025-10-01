@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"math/rand/v2"
 	"sync"
 )
 
@@ -9,12 +10,15 @@ type mockNetwork struct {
 	mu         sync.RWMutex
 	listeners  map[Address]chan Message
 	partitions map[Address]bool // true if the address is partitioned
+	dropRate   float64          // probability of dropping a message
+
 }
 
-func NewMockNetwork() Network {
+func NewMockNetwork(dropRate float64) Network {
 	return &mockNetwork{
 		listeners:  make(map[Address]chan Message),
 		partitions: make(map[Address]bool),
+		dropRate:   dropRate,
 	}
 }
 
@@ -55,6 +59,12 @@ func (n *mockNetwork) Heal() {
 	n.partitions = make(map[Address]bool)
 }
 
+func (n *mockNetwork) SetDropRate(rate float64) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.dropRate = rate
+}
+
 type mockConnection struct {
 	addr    Address
 	network *mockNetwork
@@ -75,6 +85,16 @@ func (c *mockConnection) Send(msg Message) error {
 	if !exists {
 		c.network.mu.RUnlock()
 		return errors.New("destination address not found")
+	}
+
+	// Simulate message drop
+	if c.network.dropRate > 0.0 {
+		// Simple random drop based on dropRate
+		if randFloat := rand.Float64(); randFloat < c.network.dropRate {
+			c.network.mu.RUnlock()
+			// Pretend the message was sent successfully
+			return nil
+		}
 	}
 
 	// Add network reference to message for replies

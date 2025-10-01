@@ -14,11 +14,13 @@ import (
 )
 
 func TestPingAndResponse(t *testing.T) {
-	net := network.NewMockNetwork()
+	net := network.NewMockNetwork(0.0)
 
+	k := 4
+	alpha := 3
 	// Set up two nodes
 
-	alice, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160))
+	alice, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160), k, alpha)
 
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
@@ -29,7 +31,7 @@ func TestPingAndResponse(t *testing.T) {
 	// Set a bit to differentiate from Alice Id
 	bobId.Set(100, true)
 
-	bob, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8001}, *bobId)
+	bob, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8001}, *bobId, k, alpha)
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
@@ -59,11 +61,14 @@ func TestPingAndResponse(t *testing.T) {
 }
 
 func TestMultiplePings(t *testing.T) {
-	net := network.NewMockNetwork()
+
+	k := 4
+	alpha := 3
+	net := network.NewMockNetwork(0.0)
 
 	// Set up two nodes
 
-	alice, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160))
+	alice, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160), k, alpha)
 
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
@@ -74,7 +79,7 @@ func TestMultiplePings(t *testing.T) {
 	// Set a bit to differentiate from Alice Id
 	bobId.Set(100, true)
 
-	bob, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8001}, *bobId)
+	bob, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8001}, *bobId, k, alpha)
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
