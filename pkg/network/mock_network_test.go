@@ -5,7 +5,7 @@ import (
 )
 
 func TestMockNetwork_ListenAndDial(t *testing.T) {
-	net := NewMockNetwork()
+	net := NewMockNetwork(0.0)
 	addr := Address{IP: "127.0.0.1", Port: 8000}
 
 	_, err := net.Listen(addr)
@@ -24,7 +24,7 @@ func TestMockNetwork_ListenAndDial(t *testing.T) {
 }
 
 func TestMockConnection_SendRecv(t *testing.T) {
-	net := NewMockNetwork()
+	net := NewMockNetwork(0.0)
 	addr1 := Address{IP: "127.0.0.1", Port: 8000}
 	addr2 := Address{IP: "127.0.0.1", Port: 8001}
 
@@ -47,7 +47,7 @@ func TestMockConnection_SendRecv(t *testing.T) {
 }
 
 func TestMockNetwork_Partition(t *testing.T) {
-	net := NewMockNetwork()
+	net := NewMockNetwork(0.0)
 	addr1 := Address{IP: "127.0.0.1", Port: 8000}
 	addr2 := Address{IP: "127.0.0.1", Port: 8001}
 
@@ -79,7 +79,7 @@ func TestMockNetwork_Partition(t *testing.T) {
 }
 
 func TestMockConnection_Close(t *testing.T) {
-	net := NewMockNetwork()
+	net := NewMockNetwork(0.0)
 	addr := Address{IP: "127.0.0.1", Port: 8000}
 	conn, _ := net.Listen(addr)
 

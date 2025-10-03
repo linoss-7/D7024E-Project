@@ -72,12 +72,10 @@ func LargeKademliaNetworkTest(numNodes int, dropRate float64, k int, alpha int) 
 		if err != nil {
 			return fmt.Errorf("Failed to retrieve value: %v", err)
 		}
-		// Check that all retrieved values match the stored value (Value may be stored on multiple nodes)
+		// Check that all retrieved value matches stored value
 
-		for _, retrievedValue := range retrievedValue {
-			if retrievedValue.Data != value {
-				return fmt.Errorf("Retrieved value does not match stored value. Got %s, expected %s", retrievedValue.Data, value)
-			}
+		if retrievedValue != value {
+			return fmt.Errorf("Retrieved value does not match stored value. Got %s, expected %s", retrievedValue, value)
 		}
 	}
 

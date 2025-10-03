@@ -75,9 +75,69 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 	}
 }
 
-func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) ([]common.DataObject, error) {
-	// Dummy implementation, always returns not implemented
-	return nil, fmt.Errorf("not implemented")
+func (kn *KademliaNode) FindValue(key *utils.BitArray) (string, error) {
+	// Not implemented
+	return "", fmt.Errorf("not implemented")
+}
+
+func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, error) {
+
+	// Perform a lookup on the key
+
+	nodes, err := kn.LookUp(key)
+
+	if err != nil {
+		return "", err
+	}
+
+	// Send find_value RPCs to all those nodes
+
+	resCh := make(chan string, len(nodes))
+	for i := 0; i < len(nodes); i++ {
+		go func(n common.NodeInfo) {
+			// Create find_value message
+			findValueMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
+			resp, err := kn.SendAndAwaitResponse("find_value", network.Address{IP: n.IP, Port: n.Port}, findValueMsg)
+			if err != nil {
+				//logrus.Errorf("Error sending find_value to %s: %v", n.ID.ToString(), err)
+				resCh <- ""
+				return
+			}
+
+			// Convert byte body to string
+			value := string(resp.Body)
+			resCh <- value
+		}(nodes[i])
+	}
+
+	// Collect results
+	var results []string
+	for i := 0; i < len(nodes); i++ {
+		result := <-resCh
+		results = append(results, result)
+	}
+
+	// Return the non-empty result with the highest frequency
+	frequency := make(map[string]int)
+	for _, v := range results {
+		if v != "" {
+			frequency[v]++
+		}
+	}
+
+	var finalValue string
+	maxFreq := 0
+	for k, v := range frequency {
+		if v > maxFreq {
+			maxFreq = v
+			finalValue = k
+		}
+	}
+	if finalValue == "" {
+		return "", fmt.Errorf("value not found in network")
+	}
+
+	return finalValue, nil
 }
 
 func (kn *KademliaNode) Join(address network.Address) error {
@@ -85,14 +145,36 @@ func (kn *KademliaNode) Join(address network.Address) error {
 	return fmt.Errorf("not implemented")
 }
 
-func (kn *KademliaNode) Store(value common.DataObject) error {
-	// Dummy implementation, always returns not implemented
-	return fmt.Errorf("not implemented")
-}
-
-func (kn *KademliaNode) StoreInNetwork(value string) ([]common.NodeInfo, error) {
+func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) {
 	// Dummy implementation, always returns not implemented
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
+	// Hash the value to get the key
+
+	key := utils.ComputeHash(value, 160)
+
+	// Perform a lookup on the key
+
+	nodes, err := kn.LookUp(key)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Send store RPCs to all those nodes
+
+	for i := 0; i < len(nodes); i++ {
+		go func(n common.NodeInfo) {
+			// Create store message
+			storeMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
+			storeMsg.Body = []byte(value)
+			kn.SendRPC("store", network.Address{IP: n.IP, Port: n.Port}, storeMsg)
+		}(nodes[i])
+	}
+
+	return key, nil
 }
 
 func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessage *proto_gen.KademliaMessage) error {
@@ -108,4 +190,14 @@ func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessag
 	//logrus.Infof("Sending message with RPC ID %x to %s", kademliaMessage.RPCId, addr.String())
 	kn.Node.Send(addr, rpc, marshalledMsg)
 	return nil
+}
+
+func (kn *KademliaNode) LookUp(id *utils.BitArray) ([]common.NodeInfo, error) {
+	// Dummy implementation, does nothing
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (kn *KademliaNode) Exit() error {
+	// Exit the node
+	return kn.Node.Close()
 }

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -13,14 +14,16 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(PingCmd)
+	rootCmd.AddCommand(PutCmd)
 }
 
-var PingCmd = &cobra.Command{
-	Use:   "ping",
-	Short: "Ping the node",
-	Long:  "Ping a Kademlia node in an UDP network",
+var PutCmd = &cobra.Command{
+	Use:   "put",
+	Short: "Put a value in the Kademlia network",
+	Long:  "Put a value in the Kademlia network",
 	Run: func(cmd *cobra.Command, args []string) {
+		value := args[0]
+
 		net := network.NewUDPNetwork()
 
 		// Read the node info from the json file
@@ -60,12 +63,14 @@ var PingCmd = &cobra.Command{
 			return
 		}
 
-		// Send a ping rpc to the node
+		// Send a put rpc to the node
 
-		resp, err := newNode.SendAndAwaitResponse("ping", network.Address{IP: info.IP, Port: info.Port}, common.DefaultKademliaMessage(*id, nil))
+		msg := common.DefaultKademliaMessage(*id, []byte(value))
+
+		resp, err := newNode.SendAndAwaitResponse("put", network.Address{IP: info.IP, Port: info.Port}, msg)
 
 		if err != nil {
-			cmd.Println("Ping failed:", err)
+			cmd.Println("Put failed:", err)
 			return
 		}
 
@@ -74,7 +79,9 @@ var PingCmd = &cobra.Command{
 			return
 		}
 
-		cmd.Println("Ping successful! Response RPC ID:", resp.RPCId, " from ", resp.SenderId)
-
+		// Check response, should contain the key for the value
+		key := utils.NewBitArrayFromBytes(resp.Body, 160)
+		hexKey := hex.EncodeToString(key.ToBytes())
+		cmd.Println("Value stored with key:", hexKey)
 	},
 }
