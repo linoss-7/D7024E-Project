@@ -201,3 +201,384 @@ func (kn *KademliaNode) Exit() error {
 	// Exit the node
 	return kn.Node.Close()
 }
+
+func (kn *KademliaNode) Lookup(targetID *utils.BitArray) ([]*common.NodeInfo, error) {
+	alpha := kn.alpha
+	k := kn.k
+
+	// Configurable timeouts
+	const (
+		nodeTimeout   = 2 * time.Second  // Per-node query timeout
+		lookupTimeout = 30 * time.Second // Overall lookup timeout
+	)
+
+	// Create context with overall timeout
+	ctx, cancel := context.WithTimeout(context.Background(), lookupTimeout)
+	defer cancel()
+
+	var closestNode *common.NodeInfo
+	kClosestNodes := make([]*common.NodeInfo, 0, k)
+	unprobedNodes := make([]*common.NodeInfo, 0)
+
+	// Track probed nodes to avoid re-querying
+	probed := make(map[string]bool)
+
+	// Step 1: choose alpha nodes from the routing table
+	initialNodes := kn.routingTable.FindClosest(*targetID)
+	if len(initialNodes) > alpha {
+		unprobedNodes = append(unprobedNodes, initialNodes[:alpha]...)
+	} else {
+		unprobedNodes = append(unprobedNodes, initialNodes...)
+	}
+	kClosestNodes = append(kClosestNodes, unprobedNodes...)
+
+	// Channel to receive async results
+	type queryResult struct {
+		from  *common.NodeInfo
+		nodes []*common.NodeInfo
+		err   error
+	}
+	resultsCh := make(chan queryResult, 100)
+
+	// Concurrency control
+	var wg sync.WaitGroup
+	inflight := 0
+
+	// Launch up to alpha queries in parallel with timeout
+	launchQuery := func(node *common.NodeInfo) {
+		probed[node.ID.String()] = true
+		inflight++
+		wg.Add(1)
+		go func(n *common.NodeInfo) {
+			defer wg.Done()
+
+			// Create per-node timeout
+			nodeCtx, nodeCancel := context.WithTimeout(ctx, nodeTimeout)
+			defer nodeCancel()
+
+			// Channel for the actual query
+			type nodeResult struct {
+				nodes []*common.NodeInfo
+				err   error
+			}
+			nodeCh := make(chan nodeResult, 1)
+
+			// Run query in goroutine
+			go func() {
+				res, err := n.FindNode(targetID)
+				nodeCh <- nodeResult{nodes: res, err: err}
+			}()
+
+			// Wait for result or timeout
+			select {
+			case nr := <-nodeCh:
+				resultsCh <- queryResult{from: n, nodes: nr.nodes, err: nr.err}
+			case <-nodeCtx.Done():
+				// Node timed out
+				resultsCh <- queryResult{from: n, nodes: nil, err: nodeCtx.Err()}
+			}
+		}(node)
+	}
+
+	// Kick off initial α queries
+	for i := 0; i < alpha && i < len(unprobedNodes); i++ {
+		launchQuery(unprobedNodes[i])
+	}
+	unprobedNodes = unprobedNodes[min(alpha, len(unprobedNodes)):] // remove those launched
+
+	// Main loop with overall timeout check
+	for inflight > 0 {
+		select {
+		case <-ctx.Done():
+			// Overall timeout reached - return what we have
+			wg.Wait()
+			close(resultsCh)
+			if len(kClosestNodes) == 0 {
+				return nil, fmt.Errorf("lookup timeout: %w", ctx.Err())
+			}
+			return kClosestNodes, nil
+
+		case result := <-resultsCh:
+			inflight--
+
+			if result.err != nil || result.nodes == nil {
+				continue // failed or timed out node
+			}
+
+			for _, n := range result.nodes {
+				if n.ID.Equals(targetID) {
+					cancel() // Cancel remaining operations
+					wg.Wait()
+					close(resultsCh)
+					return []*common.NodeInfo{n}, nil
+				}
+
+				// Track closest node seen so far
+				if closestNode == nil || n.ID.CloserTo(targetID, closestNode.ID) {
+					closestNode = n
+				}
+
+				// Update kClosestNodes
+				if !containsNodePtr(kClosestNodes, n) {
+					if len(kClosestNodes) < k {
+						kClosestNodes = append(kClosestNodes, n)
+					} else {
+						farthestIdx := findFarthestNodeIndexPtr(kClosestNodes, targetID)
+						if n.ID.CloserTo(targetID, kClosestNodes[farthestIdx].ID) {
+							kClosestNodes[farthestIdx] = n
+						}
+					}
+				}
+
+				// Schedule new queries if not probed
+				if !probed[n.ID.String()] {
+					unprobedNodes = append(unprobedNodes, n)
+				}
+			}
+
+			// Launch more queries (keep α parallelism)
+			for inflight < alpha && len(unprobedNodes) > 0 {
+				next := unprobedNodes[0]
+				unprobedNodes = unprobedNodes[1:]
+				if !probed[next.ID.String()] {
+					launchQuery(next)
+				}
+			}
+		}
+	}
+
+	wg.Wait()
+	close(resultsCh)
+
+	return kClosestNodes, nil
+}
+
+/* pseudocode
+function Lookup(targetID):
+	closestNode = nil
+	kClosestNodes = []
+	unprobedNodes = []
+
+	alpha = self.alpha
+	k = self.k
+
+	// choose alpha nodes from routing table
+	unprobedNodes.add(self.routingTable.getClosestNodes(targetID, alpha))
+
+	kClosestNodes.add(unprobedNodes)
+
+	for node in unprobedNodes:
+		result = node.FindNode(targetID)
+
+		if result is not nil:
+			unprobedNodes.add(result)
+			mark node as probed
+
+			for n in result:
+				if n contains targetID:
+					return n
+				if closestNode is nil or n is closer to targetID than closestNode:
+					closestNode = n
+				if n not in kClosestNodes:
+					if kClosestNodes.size < k:
+						kClosestNodes.add(n)
+					else if n is closer to targetID than the farthest node in kClosestNodes:
+						replace farthest node in kClosestNodes with n
+
+		else:
+			remove node from unprobedNodes
+*/
+/*
+func (kn *KademliaNode) Lookup(targetID *utils.BitArray) ([]*common.NodeInfo, error) {
+	alpha := kn.alpha
+	k := kn.k
+
+	var closestNode *common.NodeInfo
+	kClosestNodes := make([]*common.NodeInfo, 0, k)
+	tempList := make([]*common.NodeInfo, 0)
+
+	// Track probed nodes to avoid re-querying
+	probed := make(map[string]bool)
+
+	// Step 1: choose alpha nodes from the routing table
+	initialNodes := kn.routingTable.FindClosest(*targetID)
+	if len(initialNodes) > alpha {
+		tempList = append(tempList, initialNodes[:alpha]...)
+	} else {
+		tempList = append(tempList, initialNodes...)
+	}
+	kClosestNodes = append(kClosestNodes, tempList...)
+
+	// Step 2: iterative probing
+	for len(tempList) > 0 {
+		node := tempList[0]
+		tempList = tempList[1:]
+
+		nodeIDStr := node.ID.String()
+		if probed[nodeIDStr] {
+			continue // already probed
+		}
+		probed[nodeIDStr] = true
+
+		// Perform a FindNode RPC
+		result, err := node.FindNode(targetID)
+		if err != nil || result == nil {
+			continue // unreachable node
+		}
+
+		// Process returned nodes
+		for _, n := range result {
+			// If direct match, return immediately
+			if n.ID.Equals(targetID) {
+				return []*common.NodeInfo{n}, nil
+			}
+
+			// Track closest
+			if closestNode == nil || n.ID.CloserTo(targetID, closestNode.ID) {
+				closestNode = n
+			}
+
+			// Update kClosestNodes set
+			if !containsNodePtr(kClosestNodes, n) {
+				if len(kClosestNodes) < k {
+					kClosestNodes = append(kClosestNodes, n)
+				} else {
+					farthestIdx := findFarthestNodeIndexPtr(kClosestNodes, targetID)
+					if n.ID.CloserTo(targetID, kClosestNodes[farthestIdx].ID) {
+						kClosestNodes[farthestIdx] = n
+					}
+				}
+			}
+
+			// Add to tempList if not probed
+			if !probed[n.ID.String()] && !containsNodePtr(tempList, n) {
+				tempList = append(tempList, n)
+			}
+		}
+	}
+
+	return kClosestNodes, nil
+}
+
+
+// Helpers for pointer slices
+func containsNodePtr(nodes []*common.NodeInfo, candidate *common.NodeInfo) bool {
+	for _, n := range nodes {
+		if n.ID.Equals(candidate.ID) {
+			return true
+		}
+	}
+	return false
+}
+
+func findFarthestNodeIndexPtr(nodes []*common.NodeInfo, targetID *utils.BitArray) int {
+	if len(nodes) == 0 {
+		return -1
+	}
+	farthestIdx := 0
+	for i := 1; i < len(nodes); i++ {
+		if nodes[i].ID.Distance(targetID).Cmp(nodes[farthestIdx].ID.Distance(targetID)) > 0 {
+			farthestIdx = i
+		}
+	}
+	return farthestIdx
+}
+
+
+
+func (kn *KademliaNode) Lookup(targetID *utils.BitArray) ([]*common.NodeInfo, error) {
+	alpha := kn.alpha
+	k := kn.k
+
+	var closestNode *common.NodeInfo
+	kClosestNodes := make([]*common.NodeInfo, 0, k)
+	tempList := kn.routingTable.FindClosest(*targetID)
+
+	// Track probed nodes
+	probed := make(map[string]bool)
+
+	// Channel to receive async results
+	type queryResult struct {
+		from   *common.NodeInfo
+		nodes  []*common.NodeInfo
+		err    error
+	}
+	resultsCh := make(chan queryResult, 100)
+
+	// Concurrency control
+	var wg sync.WaitGroup
+	inflight := 0
+
+	// Launch up to alpha queries in parallel
+	launchQuery := func(node *common.NodeInfo) {
+		probed[node.ID.String()] = true
+		inflight++
+		wg.Add(1)
+		go func(n *common.NodeInfo) {
+			defer wg.Done()
+			res, err := n.FindNode(targetID)
+			resultsCh <- queryResult{from: n, nodes: res, err: err}
+		}(node)
+	}
+
+	// Kick off initial α queries
+	for i := 0; i < alpha && i < len(tempList); i++ {
+		launchQuery(tempList[i])
+	}
+	tempList = tempList[min(alpha, len(tempList)):] // remove those launched
+
+	// Main loop
+	for inflight > 0 {
+		result := <-resultsCh
+		inflight--
+
+		if result.err != nil || result.nodes == nil {
+			continue // failed node
+		}
+
+		for _, n := range result.nodes {
+			if n.ID.Equals(targetID) {
+				close(resultsCh)
+				wg.Wait()
+				return []*common.NodeInfo{n}, nil
+			}
+
+			// Track closest node seen so far
+			if closestNode == nil || n.ID.CloserTo(targetID, closestNode.ID) {
+				closestNode = n
+			}
+
+			// Update kClosestNodes
+			if !containsNodePtr(kClosestNodes, n) {
+				if len(kClosestNodes) < k {
+					kClosestNodes = append(kClosestNodes, n)
+				} else {
+					farthestIdx := findFarthestNodeIndexPtr(kClosestNodes, targetID)
+					if n.ID.CloserTo(targetID, kClosestNodes[farthestIdx].ID) {
+						kClosestNodes[farthestIdx] = n
+					}
+				}
+			}
+
+			// Schedule new queries if not probed
+			if !probed[n.ID.String()] {
+				tempList = append(tempList, n)
+			}
+		}
+
+		// Launch more queries (keep α parallelism)
+		for inflight < alpha && len(tempList) > 0 {
+			next := tempList[0]
+			tempList = tempList[1:]
+			if !probed[next.ID.String()] {
+				launchQuery(next)
+			}
+		}
+	}
+
+	wg.Wait()
+	close(resultsCh)
+
+	return kClosestNodes, nil
+}
+*/
