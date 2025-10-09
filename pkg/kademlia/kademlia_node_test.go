@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"bytes"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -158,5 +159,160 @@ func TestMultiplePings(t *testing.T) {
 			t.Errorf("Duplicate RPC ID found: %x", resp.RPCId)
 		}
 		rpcIdMap[rpcIdStr] = true
+	}
+}
+
+// Test republishing
+
+func TestRepublishing(t *testing.T) {
+
+	return // Uncomment when store is implemented
+
+	// This test will:
+	// Test republishing of a value, begin by storing a value in the network, then add a new node that should store the value when republishing occurs
+	// Trigger republishing manually by ticking the republish ticker and check that the new node has the value stored
+
+	// Setup 10 nodes
+	k := 4
+	alpha := 3
+	net := network.NewMockNetwork(0.0)
+
+	nodes := make([]*KademliaNode, 10)
+
+	for i := 0; i < 10; i++ {
+		port := 8000 + i
+		id := utils.NewRandomBitArray(160)
+		node, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: port}, *id, k, alpha)
+		if err != nil {
+			t.Fatalf("Failed to create Node: %v", err)
+		}
+		nodes[i] = node
+	}
+
+	// Join nodes to the network, each node joing a random node already in the network
+	for i := 1; i < 10; i++ {
+		// Pick a random node to join
+		joinNode := nodes[rand.Intn(i)]
+		err := nodes[i].Join(joinNode.Node.Address()) // Uncomment when implemented, should have been done with interfaces
+		if err != nil {
+			t.Fatalf("Node %d failed to join the network: %v", i, err)
+		}
+	}
+
+	// Store a value in the network from node 0
+	value := "Test string for republishing"
+	key, err := nodes[0].StoreInNetwork(value)
+
+	if err != nil {
+		t.Fatalf("Failed to store value in network: %v", err)
+	}
+
+	// Find the nodes where the value should be stored
+	nodesForKey, err := nodes[0].LookUp(key)
+
+	if err != nil {
+		t.Fatalf("Failed to lookup nodes for key: %v", err)
+	}
+
+	// Find the nodes from the lookup in our list of nodes
+	storingNodes := []*KademliaNode{}
+	for _, expectedNode := range nodesForKey {
+		for _, node := range nodes {
+			if node.ID.Equals(expectedNode.ID) {
+				storingNodes = append(storingNodes, node)
+			}
+		}
+	}
+
+	tickers := []*MockTicker{}
+	// Manually trigger republishing for the stored value
+	for _, node := range storingNodes {
+		ticker := NewMockTicker()
+		node.StartRepublish(key, ticker)
+		tickers = append(tickers, ticker)
+	}
+
+	// Add a new node to the network with ID close to the key
+
+	// Inefficient copy
+	newNodeId := utils.NewBitArrayFromBytes(key.ToBytes(), 160)
+	newNodeId.Set(159, !newNodeId.Get(159)) // Flip last bit to make it close but not the same
+
+	newNode, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8002}, *newNodeId, k, alpha)
+	if err != nil {
+		t.Fatalf("Failed to create new node: %v", err)
+	}
+
+	// Join new node to the network
+	err = newNode.Join(nodes[0].Node.Address())
+
+	if err != nil {
+		t.Fatalf("New node failed to join the network: %v", err)
+	}
+
+	// Trigger republishing manually by ticking the republish ticker on the first storing node
+	tickers[0].Tick(time.Now())
+
+	// Check that the new node has the value stored, with a mock network this should be instant
+	retrievedValue, storingNodeInfo, err := newNode.FindValueInNetwork(key)
+
+	// Check that the retrieved value matches the stored value
+	if err != nil {
+		t.Fatalf("Failed to retrieve value from network: %v", err)
+	}
+
+	if retrievedValue != value {
+		t.Fatalf("Retrieved value does not match stored value! Got %s, expected %s", retrievedValue, value)
+	}
+
+	// Check that the storing nodes contains the new node
+	found := false
+	for _, n := range storingNodeInfo {
+		if n.ID.Equals(newNode.ID) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("New node %s is not in the storing nodes", newNode.ID.ToString())
+	}
+
+}
+
+// Mock ticker for testing
+
+type MockTicker struct {
+	Ch     chan time.Time
+	mu     sync.Mutex
+	closed bool
+}
+
+func NewMockTicker() *MockTicker {
+	return &MockTicker{Ch: make(chan time.Time)}
+}
+
+func (mt *MockTicker) Stop() {
+	mt.mu.Lock()
+	if !mt.closed {
+		close(mt.Ch)
+		mt.closed = true
+	}
+	mt.mu.Unlock()
+}
+func (mt *MockTicker) Reset() {}
+func (mt *MockTicker) C() <-chan time.Time {
+	return mt.Ch
+}
+func (mt *MockTicker) Tick(tm time.Time) {
+	mt.mu.Lock()
+	defer mt.mu.Unlock()
+	if mt.closed {
+		return
+	}
+	select {
+	case mt.Ch <- tm:
+		return
+	default:
+		return
 	}
 }

@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package proto_gen;
+
+option go_package = "./;proto_gen";
+
+import "node_info_message_list.proto";
+
+message ValueAndNodesMessage {
+    string value = 1;
+    proto_gen.NodeInfoMessageList nodes = 2;
+}

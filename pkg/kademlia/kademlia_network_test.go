@@ -67,7 +67,7 @@ func LargeKademliaNetworkTest(numNodes int, dropRate float64, k int, alpha int) 
 
 		key := utils.ComputeHash(value, 160)
 
-		retrievedValue, err := retrievingNode.FindValueInNetwork(key)
+		retrievedValue, _, err := retrievingNode.FindValueInNetwork(key)
 
 		if err != nil {
 			return fmt.Errorf("Failed to retrieve value: %v", err)

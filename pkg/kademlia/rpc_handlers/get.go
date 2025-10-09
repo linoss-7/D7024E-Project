@@ -33,13 +33,32 @@ func (fnh *GetHandler) Handle(msg network.Message) error {
 	key := km.Body
 
 	// Call IDataStorage to retrieve the value
-	value, err := fnh.IDataStorage.FindValueInNetwork(utils.NewBitArrayFromBytes(key, 160))
+	value, nodes, err := fnh.IDataStorage.FindValueInNetwork(utils.NewBitArrayFromBytes(key, 160))
+	if err != nil {
+		return err
+	}
+
+	// Create a ValueAndNodesMessage
+	valueAndNodes := &proto_gen.ValueAndNodesMessage{
+		Value: value,
+		Nodes: &proto_gen.NodeInfoMessageList{},
+	}
+
+	for _, n := range nodes {
+		valueAndNodes.Nodes.Nodes = append(valueAndNodes.Nodes.Nodes, &proto_gen.NodeInfoMessage{
+			ID:   n.ID.ToBytes(),
+			IP:   n.IP,
+			Port: int32(n.Port),
+		})
+	}
+	// Marshal ValueAndNodesMessage to bytes
+	body, err := proto.Marshal(valueAndNodes)
 	if err != nil {
 		return err
 	}
 
 	// Create a response message
-	response := common.DefaultKademliaMessage(*fnh.SenderId, []byte(value))
+	response := common.DefaultKademliaMessage(*fnh.SenderId, body)
 
 	// Send the response back to the requester
 	return fnh.RpcSender.SendRPC("reply", network.Address{IP: msg.From.IP, Port: msg.From.Port}, response)
