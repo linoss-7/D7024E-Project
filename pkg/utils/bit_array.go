@@ -39,6 +39,16 @@ func NewBitArrayFromBytes(data []byte, length int) *BitArray {
 	}
 }
 
+func NewBitArrayFromString(s string) *BitArray {
+	bitArray := NewBitArray(len(s))
+	for i, char := range s {
+		if char == '1' {
+			bitArray.Set(i, true)
+		}
+	}
+	return bitArray
+}
+
 // Set sets the bit at position i (0-based) to 1 or 0
 func (b *BitArray) Set(i int, value bool) {
 	if i < 0 || i >= b.length {

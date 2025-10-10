@@ -96,6 +96,17 @@ func TestBitArray_FromBytes(t *testing.T) {
 	}
 }
 
+func TestBitArray_FromString(t *testing.T) {
+	b := NewBitArrayFromString("1011001")
+	if b.Size() != 7 {
+		t.Errorf("FromString size got %d, want 7", b.Size())
+	}
+
+	if b.ToString() != "1011001" {
+		t.Errorf("FromString got %s, want 1011001", b.ToString())
+  }
+}
+  
 func TestFindClosestNodes(t *testing.T) {
 	data1 := []byte{0b00000000, 0b10000000}
 	data2 := []byte{0b00000000, 0b11111111}

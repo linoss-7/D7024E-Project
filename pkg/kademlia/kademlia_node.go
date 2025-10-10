@@ -171,6 +171,11 @@ func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) 
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (kn *KademliaNode) Forget(id *utils.BitArray) error {
+	// Dummy implementation, always returns not implemented
+	return fmt.Errorf("not implemented")
+}
+
 func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 	// Hash the value to get the key
 
