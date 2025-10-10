@@ -2,9 +2,12 @@ package kademlia
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/node"
@@ -18,23 +21,41 @@ type KademliaNode struct {
 	ID           utils.BitArray
 	RoutingTable *common.RoutingTable
 	Value        map[*utils.BitArray][]common.DataObject
+	k            int
+	alpha        int
 }
 
 func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArray, k int, alpha int) (*KademliaNode, error) {
-	// Update to account for k and alpha
-
+	// Create node (not a Kademlia node)
 	node, err := node.NewNode(net, addr)
-
 	if err != nil {
 		return nil, err
 	}
 
 	node.Start()
 
-	return &KademliaNode{
+	// Create Kademlia node
+	kn, err := &KademliaNode{
 		Node: node,
 		ID:   id,
+		k:	k,
+		alpha: alpha,
 	}, nil
+	if err != nil {
+		return nil, err
+	}
+
+	// Create routing table
+	routingTable := common.NewRoutingTable(kn, common.NodeInfo{
+		ID:   id,
+		IP:   addr.IP,
+		Port: addr.Port,
+	}, k)
+
+	// Assign routing table to node
+	kn.RoutingTable = routingTable
+
+	return kn, nil
 }
 
 func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
@@ -94,7 +115,7 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, error) 
 
 	resCh := make(chan string, len(nodes))
 	for i := 0; i < len(nodes); i++ {
-		go func(n common.NodeInfo) {
+		go func(n *common.NodeInfo) {
 			// Create find_value message
 			findValueMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
 			resp, err := kn.SendAndAwaitResponse("find_value", network.Address{IP: n.IP, Port: n.Port}, findValueMsg)
@@ -166,7 +187,7 @@ func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 	// Send store RPCs to all those nodes
 
 	for i := 0; i < len(nodes); i++ {
-		go func(n common.NodeInfo) {
+		go func(n *common.NodeInfo) {
 			// Create store message
 			storeMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
 			storeMsg.Body = []byte(value)
@@ -192,12 +213,226 @@ func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessag
 	return nil
 }
 
-func (kn *KademliaNode) LookUp(id *utils.BitArray) ([]common.NodeInfo, error) {
-	// Dummy implementation, does nothing
-	return nil, fmt.Errorf("not implemented")
-}
-
 func (kn *KademliaNode) Exit() error {
 	// Exit the node
 	return kn.Node.Close()
+}
+
+func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, error) {
+	// Configurable timeouts
+	const (
+		nodeTimeout   = 2 * time.Second  // Per-node query timeout
+		lookupTimeout = 30 * time.Second // Overall lookup timeout
+	)
+
+	// Create context with overall timeout
+	ctx, cancel := context.WithTimeout(context.Background(), lookupTimeout)
+	defer cancel()
+
+	// k and alpha from kn
+	alpha := kn.alpha
+	k := kn.k
+
+	// Variables to track state
+	var closestNode *common.NodeInfo
+	kClosestNodes := make([]*common.NodeInfo, 0, k)
+	unprobedNodes := make([]*common.NodeInfo, 0)
+
+	// Track probed nodes to avoid re-querying
+	probed := make(map[string]bool)
+
+	// Choose alpha nodes from the routing table
+	initialNodes := kn.RoutingTable.FindClosest(*targetID)
+	if len(initialNodes) > alpha {
+		unprobedNodes = append(unprobedNodes, initialNodes[:alpha]...)
+	} else {
+		unprobedNodes = append(unprobedNodes, initialNodes...)
+	}
+
+	// Add unprobed nodes to kClosestNodes initially (alpha < k)
+	for _, n := range unprobedNodes {
+		if !containsNode(kClosestNodes, n) {
+			kClosestNodes = append(kClosestNodes, n)
+		}
+	}
+
+	// Channel to receive async results
+	type queryResult struct {
+		from  *common.NodeInfo
+		nodes []*common.NodeInfo
+		err   error
+	}
+	resultsCh := make(chan queryResult, 100)
+
+	// Concurrency control
+	var wg sync.WaitGroup
+	inflight := 0
+
+	// Launch up to alpha queries in parallel with timeout
+	launchQuery := func(node *common.NodeInfo) {
+		probed[node.ID.ToString()] = true
+		inflight++
+		wg.Add(1)
+		go func(n *common.NodeInfo) {
+			defer wg.Done()
+
+			// Create per-node timeout
+			nodeCtx, nodeCancel := context.WithTimeout(ctx, nodeTimeout)
+			defer nodeCancel()
+
+			// Create nodeinfo message for the request
+			nodeInfoMsg := &proto_gen.NodeInfoMessage{
+				ID:   n.ID.ToBytes(),
+				IP:   "",
+				Port: 0,
+			}
+
+			// Marshal nodeinfo message
+			data, err := proto.Marshal(nodeInfoMsg)
+			if err != nil {
+				resultsCh <- queryResult{from: n, nodes: nil, err: fmt.Errorf("failed to marshal NodeInfoMessage: %v", err)}
+				return
+			}
+
+			// Send find_node RPC
+			kMsg, err := kn.SendAndAwaitResponse("find_node", network.Address{IP: n.IP, Port: n.Port}, common.DefaultKademliaMessage(kn.ID, data))
+			if err != nil {
+				resultsCh <- queryResult{from: n, nodes: nil, err: err}
+				return
+			}
+
+			// Extract body from KademliaMessage
+			kMsgBody := kMsg.GetBody()
+			if kMsgBody == nil {
+				resultsCh <- queryResult{from: n, nodes: nil, err: fmt.Errorf("nil body in Kademlia message")}
+				return
+			}
+
+			// Unmarshal body to get nodes
+			var body proto_gen.NodeInfoMessageList
+			if err := proto.Unmarshal(kMsgBody, &body); err != nil {
+				resultsCh <- queryResult{from: n, nodes: nil, err: fmt.Errorf("failed to unmarshal FindNodeResponse: %v", err)}
+				return
+			}
+
+			// Get nodes from NodeInfoMessageList
+			nodes := make([]*common.NodeInfo, 0, len(body.Nodes))
+			for _, nim := range body.Nodes {
+				id := utils.NewBitArrayFromBytes(nim.ID, 160)
+				node := &common.NodeInfo{
+					ID:   *id,
+					IP:   nim.GetIP(),
+					Port: int(nim.GetPort()),
+				}
+				nodes = append(nodes, node)
+			}
+
+			// Channel to receive result or timeout
+			nodeCh := make(chan queryResult, 1)
+
+			// Send result to nodeCh
+			go func() {
+				nodeCh <- queryResult{from: n, nodes: nodes, err: nil}
+			}()
+
+			// Wait for result or timeout
+			select {
+			case nr := <-nodeCh:
+				resultsCh <- queryResult{from: n, nodes: nr.nodes, err: nr.err}
+			case <-nodeCtx.Done():
+				// Node timed out
+				resultsCh <- queryResult{from: n, nodes: nil, err: nodeCtx.Err()}
+			}
+		}(node)
+	}
+
+	// Kick off initial α queries
+	for i := 0; i < alpha && i < len(unprobedNodes); i++ {
+		launchQuery(unprobedNodes[i])
+	}
+	unprobedNodes = unprobedNodes[min(alpha, len(unprobedNodes)):] // remove those launched
+
+	// Main loop with overall timeout check
+	for inflight > 0 {
+		select {
+		case <-ctx.Done():
+			// Overall timeout reached - return what we have
+			wg.Wait()
+			close(resultsCh)
+			if len(kClosestNodes) == 0 {
+				return nil, fmt.Errorf("lookup timeout: %w", ctx.Err())
+			}
+			return kClosestNodes, nil
+
+		case result := <-resultsCh:
+			inflight--
+
+			if result.err != nil || result.nodes == nil {
+				//logrus.Errorf("Error: %v", result.err)
+				continue // failed or timed out node
+			}
+
+			for _, n := range result.nodes {
+				// Track closest node seen so far
+				if closestNode == nil || n.ID.CloserTo(*targetID, closestNode.ID) {
+					closestNode = n
+				}
+
+				// Update kClosestNodes
+				if !containsNode(kClosestNodes, n) {
+					if len(kClosestNodes) < k {
+						kClosestNodes = append(kClosestNodes, n)
+					} else {
+						farthestIdx := findFarthestNodeIndex(kClosestNodes, targetID)
+						if n.ID.CloserTo(*targetID, kClosestNodes[farthestIdx].ID) {
+							kClosestNodes[farthestIdx] = n
+						}
+					}
+				}
+
+				// Schedule new queries if not probed
+				if !probed[n.ID.ToString()] {
+					unprobedNodes = append(unprobedNodes, n)
+				}
+			}
+
+			// Launch more queries (keep α parallelism)
+			for inflight < alpha && len(unprobedNodes) > 0 {
+				next := unprobedNodes[0]
+				unprobedNodes = unprobedNodes[1:]
+				if !probed[next.ID.ToString()] {
+					launchQuery(next)
+				}
+			}
+		}
+	}
+
+	wg.Wait()
+	close(resultsCh)
+
+	logrus.Infof("%d nodes were probed nodes", len(probed))
+
+	return kClosestNodes, nil
+}
+
+
+// Helper functions
+
+func containsNode(s []*common.NodeInfo, v *common.NodeInfo) bool {
+    for _, x := range s {
+        if x.ID.ToString() == v.ID.ToString() {
+            return true
+        }
+    }
+    return false
+}
+
+func findFarthestNodeIndex(nodes []*common.NodeInfo, targetID *utils.BitArray) int {
+	farthestIdx := 0
+	for i := 1; i < len(nodes); i++ {
+		if !nodes[i].ID.CloserTo(*targetID, nodes[farthestIdx].ID) {
+			farthestIdx = i
+		}
+	}
+	return farthestIdx
 }
