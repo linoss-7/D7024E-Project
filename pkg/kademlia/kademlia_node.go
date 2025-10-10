@@ -250,7 +250,11 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 	}
 
 	// Add unprobed nodes to kClosestNodes initially (alpha < k)
-	kClosestNodes = append(kClosestNodes, unprobedNodes...)
+	for _, n := range unprobedNodes {
+		if !containsNode(kClosestNodes, n) {
+			kClosestNodes = append(kClosestNodes, n)
+		}
+	}
 
 	// Channel to receive async results
 	type queryResult struct {
@@ -416,7 +420,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 
 func containsNode(s []*common.NodeInfo, v *common.NodeInfo) bool {
     for _, x := range s {
-        if x == v {
+        if x.ID.ToString() == v.ID.ToString() {
             return true
         }
     }
