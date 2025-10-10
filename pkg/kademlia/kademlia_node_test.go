@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	//"github.com/sirupsen/logrus"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
@@ -296,7 +296,7 @@ func TestLookUpFewerNodesThenAlpha(t *testing.T) {
 		t.Fatalf("Lookup failed: %v", err)
 	}
 
-	logrus.Infof("Lookup returned %d nodes", len(closestNodes))
+	//logrus.Infof("Lookup returned %d nodes", len(closestNodes))
 
 	// Check if target node is in the list of closest nodes returned by the lookup
 
@@ -427,8 +427,6 @@ func TestLookUpMoreNodesThenAlpha(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Lookup failed: %v", err)
 	}
-
-	logrus.Infof("Lookup returned %d nodes", len(closestNodes))
 
 	// Check if target node is in the list of closest nodes returned by the lookup
 

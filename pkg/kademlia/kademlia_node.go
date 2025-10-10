@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	//"github.com/sirupsen/logrus"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/node"
@@ -254,7 +254,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 		unprobedNodes = append(unprobedNodes, initialNodes...)
 	}
 
-	// Add unprobed nodes to kClosestNodes initially (alpha < k)
+	// Add unprobed nodes to kClosestNodes (alpha < k)
 	for _, n := range unprobedNodes {
 		if !containsNode(kClosestNodes, n) {
 			kClosestNodes = append(kClosestNodes, n)
@@ -414,8 +414,6 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 
 	wg.Wait()
 	close(resultsCh)
-
-	logrus.Infof("%d nodes were probed nodes", len(probed))
 
 	return kClosestNodes, nil
 }
