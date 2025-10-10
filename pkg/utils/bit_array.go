@@ -130,3 +130,15 @@ func (b *BitArray) Equals(other BitArray) bool {
 	}
 	return true
 }
+
+func (b *BitArray) CloserTo(target, other BitArray) bool {
+	if b.Size() != target.Size() || b.Size() != other.Size() {
+		panic("bit arrays must be of the same size to compare closeness")
+	}
+
+	// Calculate distances
+	bToTarget := b.Xor(target).ToBigInt()
+	otherToTarget := other.Xor(target).ToBigInt()
+
+	return bToTarget.Cmp(otherToTarget) == -1 // b is closer if result is -1
+}

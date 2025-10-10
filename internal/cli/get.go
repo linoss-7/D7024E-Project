@@ -13,14 +13,16 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(PingCmd)
+	rootCmd.AddCommand(GetCmd)
 }
 
-var PingCmd = &cobra.Command{
-	Use:   "ping",
-	Short: "Ping the node",
-	Long:  "Ping a Kademlia node in an UDP network",
+var GetCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Get a value from the Kademlia network",
+	Long:  "Get a value from the Kademlia network",
 	Run: func(cmd *cobra.Command, args []string) {
+		key := args[0]
+
 		net := network.NewUDPNetwork()
 
 		// Read the node info from the json file
@@ -60,12 +62,14 @@ var PingCmd = &cobra.Command{
 			return
 		}
 
-		// Send a ping rpc to the node
+		// Send a get rpc to the node
 
-		resp, err := newNode.SendAndAwaitResponse("ping", network.Address{IP: info.IP, Port: info.Port}, common.DefaultKademliaMessage(*id, nil))
+		msg := common.DefaultKademliaMessage(*id, []byte(key))
+
+		resp, err := newNode.SendAndAwaitResponse("get", network.Address{IP: info.IP, Port: info.Port}, msg)
 
 		if err != nil {
-			cmd.Println("Ping failed:", err)
+			cmd.Println("Get failed:", err)
 			return
 		}
 
@@ -74,7 +78,8 @@ var PingCmd = &cobra.Command{
 			return
 		}
 
-		cmd.Println("Ping successful! Response RPC ID:", resp.RPCId, " from ", resp.SenderId)
-
+		// Check response, should contain the value for the key
+		value := string(resp.Body)
+		cmd.Println("Value retrieved for key:", value)
 	},
 }
