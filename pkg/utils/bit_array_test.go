@@ -95,3 +95,38 @@ func TestBitArray_FromBytes(t *testing.T) {
 		t.Errorf("FromBytes/ToBytes roundtrip failed")
 	}
 }
+
+func TestBitArray_FromString(t *testing.T) {
+	b := NewBitArrayFromString("1011001")
+	if b.Size() != 7 {
+		t.Errorf("FromString size got %d, want 7", b.Size())
+	}
+
+	if b.ToString() != "1011001" {
+		t.Errorf("FromString got %s, want 1011001", b.ToString())
+  }
+}
+  
+func TestFindClosestNodes(t *testing.T) {
+	data1 := []byte{0b00000000, 0b10000000}
+	data2 := []byte{0b00000000, 0b11111111}
+
+	b1 := NewBitArrayFromBytes(data1, 16)
+	if b1.ToString() != "0000000000000001" {
+		t.Errorf("BitArray1 string got %s, want 0000000000000001", b1.ToString())
+	}
+
+	b2 := NewBitArrayFromBytes(data2, 16)
+	if b2.ToString() != "0000000011111111" {
+		t.Errorf("BitArray2 string got %s, want 0000000011111111", b2.ToString())
+	}
+
+	targetID := NewBitArrayFromBytes([]byte{0b00000000, 0b00000000}, 16)
+	if targetID.ToString() != "0000000000000000" {
+		t.Errorf("TargetID string got %s, want 0000000000000000", targetID.ToString())
+	}
+
+	if !b1.CloserTo(*targetID, *b2) {
+		t.Errorf("b1 should be closer to targetID than b2")
+	}
+}

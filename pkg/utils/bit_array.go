@@ -39,6 +39,16 @@ func NewBitArrayFromBytes(data []byte, length int) *BitArray {
 	}
 }
 
+func NewBitArrayFromString(s string) *BitArray {
+	bitArray := NewBitArray(len(s))
+	for i, char := range s {
+		if char == '1' {
+			bitArray.Set(i, true)
+		}
+	}
+	return bitArray
+}
+
 // Set sets the bit at position i (0-based) to 1 or 0
 func (b *BitArray) Set(i int, value bool) {
 	if i < 0 || i >= b.length {
@@ -119,4 +129,16 @@ func (b *BitArray) Equals(other BitArray) bool {
 		}
 	}
 	return true
+}
+
+func (b *BitArray) CloserTo(target, other BitArray) bool {
+	if b.Size() != target.Size() || b.Size() != other.Size() {
+		panic("bit arrays must be of the same size to compare closeness")
+	}
+
+	// Calculate distances
+	bToTarget := b.Xor(target).ToBigInt()
+	otherToTarget := other.Xor(target).ToBigInt()
+
+	return bToTarget.Cmp(otherToTarget) == -1 // b is closer if result is -1
 }
