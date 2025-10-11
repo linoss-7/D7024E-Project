@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
+	"github.com/sirupsen/logrus"
 )
 
 func TestPingAndResponse(t *testing.T) {
@@ -37,17 +37,6 @@ func TestPingAndResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
-
-	bobInfo := common.NodeInfo{
-		ID:   *bobId,
-		IP:   "127.0.0.1",
-		Port: 8001,
-	}
-	// Define ping handler
-	pingHandler := rpc_handlers.NewPingHandler(bob, bobInfo)
-
-	// Register ping handler to node
-	bob.Node.Handle("ping", pingHandler.Handle)
 
 	// Alice sends a ping to Bob
 	aliceMsg := common.DefaultKademliaMessage(alice.ID, nil)
@@ -85,18 +74,6 @@ func TestMultiplePings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
-
-	bobInfo := common.NodeInfo{
-		ID:   *bobId,
-		IP:   "127.0.0.1",
-		Port: 8001,
-	}
-
-	// Define ping handler
-	pingHandler := rpc_handlers.NewPingHandler(bob, bobInfo)
-
-	// Register ping handler to node
-	bob.Node.Handle("ping", pingHandler.Handle)
 
 	respCh := make(chan *proto_gen.KademliaMessage, 10)
 	errCh := make(chan error)
@@ -279,7 +256,7 @@ func TestRepublishing(t *testing.T) {
 	}
 
 }
-  
+
 func TestLookUpFewerNodesThenAlpha(t *testing.T) {
 	// Create a mock network with no message loss
 	net := network.NewMockNetwork(0.0)
@@ -441,7 +418,7 @@ func TestLookUpMoreNodesThenAlpha(t *testing.T) {
 	net := network.NewMockNetwork(0.0)
 
 	// Set parameters k and alpha
-	k := 3 // k is less than the number of nodes in the network
+	k := 3     // k is less than the number of nodes in the network
 	alpha := 2 // alpha is less than the number of nodes in the network
 
 	localIP := "127.0.0.1"
@@ -568,8 +545,6 @@ func TestLookUpMoreNodesThenAlpha(t *testing.T) {
 	}
 }
 
-
-
 // Mock ticker for testing
 
 type MockTicker struct {
@@ -605,5 +580,5 @@ func (mt *MockTicker) Tick(tm time.Time) {
 		return
 	default:
 		return
-  }
+	}
 }

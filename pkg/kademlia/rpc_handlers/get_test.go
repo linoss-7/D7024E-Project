@@ -7,6 +7,7 @@ import (
 
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
+	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 	"google.golang.org/protobuf/proto"
 )
@@ -57,8 +58,17 @@ func TestGetHandler_GetValue(t *testing.T) {
 	}
 
 	// Check that the value in the reply matches the stored value
-	if string(valueBytes) != value {
-		t.Fatalf("Expected value %s, got %s", value, string(valueBytes))
+
+	// Unmarshal the ValueAndNodesMessage
+	var vanm proto_gen.ValueAndNodesMessage
+	err = proto.Unmarshal(valueBytes, &vanm)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal ValueAndNodesMessage: %v", err)
+	}
+
+	// Check that the value in the reply matches the stored value
+	if vanm.Value != value {
+		t.Fatalf("Expected value %s, got %s", value, vanm.Value)
 	}
 }
 
@@ -122,9 +132,13 @@ func TestGetHandler_NotFound(t *testing.T) {
 		t.Fatalf("Expected reply message not found")
 	}
 
+	// Unmarshal the ValueAndNodesMessage
+	var vanm proto_gen.ValueAndNodesMessage
+	err = proto.Unmarshal(reply, &vanm)
+
 	// An empty body indicates that the value was not found
-	if len(reply) != 0 {
-		t.Fatalf("Expected empty reply body for non-existent key, got %s", string(reply))
+	if vanm.Value != "" {
+		t.Fatalf("Expected empty value for non-existent key, got %s", vanm.Value)
 	}
 }
 

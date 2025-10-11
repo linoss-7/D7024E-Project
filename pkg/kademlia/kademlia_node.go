@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/node"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -37,9 +37,9 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 
 	// Create Kademlia node
 	kn, err := &KademliaNode{
-		Node: node,
-		ID:   id,
-		k:	k,
+		Node:  node,
+		ID:    id,
+		k:     k,
 		alpha: alpha,
 	}, nil
 
@@ -182,7 +182,7 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []commo
 	var storingNodes []common.NodeInfo
 	for i, v := range results {
 		if v == finalValue {
-			storingNodes = append(storingNodes, nodes[i])
+			storingNodes = append(storingNodes, *nodes[i])
 		}
 	}
 
@@ -540,16 +540,15 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 	return kClosestNodes, nil
 }
 
-
 // Helper functions
 
 func containsNode(s []*common.NodeInfo, v *common.NodeInfo) bool {
-    for _, x := range s {
-        if x.ID.ToString() == v.ID.ToString() {
-            return true
-        }
-    }
-    return false
+	for _, x := range s {
+		if x.ID.ToString() == v.ID.ToString() {
+			return true
+		}
+	}
+	return false
 }
 
 func findFarthestNodeIndex(nodes []*common.NodeInfo, targetID *utils.BitArray) int {

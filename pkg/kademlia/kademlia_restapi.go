@@ -38,7 +38,7 @@ func (api *KademliaRESTAPI) RegisterRoutes() {
 			}
 			id := utils.NewBitArrayFromBytes(idBytes, 160)
 
-			dataObjects, err := api.kademliaNode.FindValueInNetwork(id)
+			dataObjects, _, err := api.kademliaNode.FindValueInNetwork(id)
 			if err != nil {
 				http.Error(w, "Failed to find value", http.StatusInternalServerError)
 				return
