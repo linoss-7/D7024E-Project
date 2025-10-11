@@ -24,6 +24,8 @@ type KademliaNode struct {
 	Values       map[*utils.BitArray][]common.DataObject
 	republishers map[*utils.BitArray]chan bool
 	repubMutex   sync.RWMutex
+	refreshers   map[*utils.BitArray]chan bool
+	refreshMutex sync.RWMutex
 	k            int
 	alpha        int
 }
@@ -233,6 +235,18 @@ func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 
 	key := utils.ComputeHash(value, 160)
 
+	// Check that theres no already a refresher for the key
+	kn.refreshMutex.RLock()
+	if kn.refreshers[key] != nil {
+		kn.refreshMutex.RUnlock()
+		return nil, fmt.Errorf("a refresher already exists for key %s", key.ToString())
+	}
+	kn.refreshMutex.RUnlock()
+
+	// Start a refresher for the key
+
+	kn.StartRefresh(key, utils.NewRealTimeTicker(300*time.Second))
+
 	// Perform a lookup on the key
 
 	nodes, err := kn.LookUp(key)
@@ -341,6 +355,67 @@ func (kn *KademliaNode) StartRepublish(key *utils.BitArray, ticker utils.Ticker)
 		}
 	}()
 	return restartCh, errCh
+}
+
+func (kn *KademliaNode) StartRefresh(key *utils.BitArray, ticker utils.Ticker) chan error {
+	exitCh := make(chan bool)
+	errCh := make(chan error, 1)
+
+	// Add the exit channel to the refreshers map
+	kn.refreshMutex.Lock()
+	if kn.refreshers == nil {
+		kn.refreshers = make(map[*utils.BitArray]chan bool)
+	}
+	kn.refreshers[key] = exitCh
+	kn.refreshMutex.Unlock()
+
+	go func() {
+		defer ticker.Stop()
+		// Similar to republisher but cant be restarted, only tick and exit
+		for {
+			select {
+			case <-ticker.C():
+				// Refresh when ticker ticks
+				val, err := kn.FindValue(key)
+				if val == "" {
+					// Value not found locally, exit refresher
+					return
+				}
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					continue
+				}
+				if err := kn.Refresh(key, val); err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					continue
+				}
+			case <-exitCh:
+				return
+			}
+		}
+	}()
+	return errCh
+}
+
+func (kn *KademliaNode) StopRefresh(key *utils.BitArray) error {
+	kn.refreshMutex.Lock()
+	ch, exists := kn.refreshers[key]
+	if !exists {
+		// This is not an error, just means theres no refresher for the key
+		return nil
+	}
+	// Remove the entry from the map
+	delete(kn.refreshers, key)
+	kn.refreshMutex.Unlock()
+
+	close(ch)
+	return nil
 }
 
 func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, error) {
