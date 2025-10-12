@@ -254,7 +254,88 @@ func TestRepublishing(t *testing.T) {
 	if !found {
 		t.Fatalf("New node %s is not in the storing nodes", newNode.ID.ToString())
 	}
+}
 
+func TestRefresh(t *testing.T) {
+	return // Uncomment when store is implemented
+
+	// Setup 10 kademlia nodes
+	k := 4
+	alpha := 3
+	net := network.NewMockNetwork(0.0)
+
+	nodes := make([]*KademliaNode, 10)
+
+	for i := 0; i < 10; i++ {
+		port := 8000 + i
+		id := utils.NewRandomBitArray(160)
+		node, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: port}, *id, k, alpha)
+		if err != nil {
+			t.Fatalf("Failed to create Node: %v", err)
+		}
+		nodes[i] = node
+	}
+
+	// Join nodes to the network, each node joing a random node already in the network
+	for i := 1; i < 10; i++ {
+		// Pick a random node to join
+		joinNode := nodes[rand.Intn(i)]
+		err := nodes[i].Join(joinNode.Node.Address()) // Uncomment when implemented, should have been done with interfaces
+		if err != nil {
+			t.Fatalf("Node %d failed to join the network: %v", i, err)
+		}
+	}
+
+	// Store a value from the first node
+	value := "Test string for refreshing"
+	key, err := nodes[0].StoreInNetwork(value)
+
+	// Start refreshing the value on the first node with a mock ticker
+
+	ticker := NewMockTicker()
+	nodes[0].StartRefresh(key, ticker)
+
+	// Add a new node to the network that is close to the key
+
+	newNodeId := utils.NewBitArrayFromBytes(key.ToBytes(), 160)
+	newNodeId.Set(159, !newNodeId.Get(159)) // Flip last bit to make it close but not the same
+
+	// Refresh the message by ticking the mock ticker
+
+	newNode, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8002}, *newNodeId, k, alpha)
+	if err != nil {
+		t.Fatalf("Failed to create new node: %v", err)
+	}
+
+	// Join new node to the network
+	err = newNode.Join(nodes[0].Node.Address())
+
+	if err != nil {
+		t.Fatalf("New node failed to join the network: %v", err)
+	}
+
+	// Check that the value is still stored in the network by retrieving it from a random node
+	retrievingNode := nodes[rand.Intn(10)]
+
+	retrievedValue, storingNodesInfo, err := retrievingNode.FindValueInNetwork(key)
+	if err != nil {
+		t.Fatalf("Failed to retrieve value from network: %v", err)
+	}
+	if retrievedValue != value {
+		t.Fatalf("Retrieved value does not match stored value! Got %s, expected %s", retrievedValue, value)
+	}
+
+	// Ensure that the new node has the value stored
+	found := false
+	for _, n := range storingNodesInfo {
+		if n.ID.Equals(newNode.ID) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("New node %s is not in the storing nodes", newNode.ID.ToString())
+	}
 }
 
 func TestLookUpFewerNodesThenAlpha(t *testing.T) {
