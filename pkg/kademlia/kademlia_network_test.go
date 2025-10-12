@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 )
@@ -33,7 +34,12 @@ func LargeKademliaNetworkTest(numNodes int, dropRate float64, k int, alpha int) 
 	for i := 1; i < numNodes; i++ {
 		// Pick a random node to join
 		joinNode := nodes[rand.Intn(i)]
-		err := nodes[i].Join(joinNode.Node.Address()) // Uncomment when implemented, should have been done with interfaces
+		joinNodeInfo := common.NodeInfo{
+			IP:   joinNode.Node.Address().IP,
+			Port: joinNode.Node.Address().Port,
+			ID:   joinNode.ID,
+		}
+		err := nodes[i].Join(joinNodeInfo)
 		if err != nil {
 			return fmt.Errorf("Node %d failed to join the network: %v", i, err)
 		}

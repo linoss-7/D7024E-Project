@@ -13,7 +13,6 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/node"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -63,21 +62,52 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 
 	pingHandler := rpc_handlers.NewPingHandler(kn, knInfo)
 	exitHandler := rpc_handlers.NewExitHandler(kn, kn, &knInfo.ID)
-	//storeHandler := rpc_handlers.NewStoreHandler(kn, kn, &knInfo.ID)
+	storeHandler := rpc_handlers.NewStoreHandler(kn, kn, &knInfo.ID)
+	findValueHandler := rpc_handlers.NewFindValueHandler(kn, kn.RoutingTable, kn)
 	getHandler := rpc_handlers.NewGetHandler(kn, kn, &knInfo.ID)
 	findNodeHandler := rpc_handlers.NewFindNodeHandler(kn, rt)
 	putHandler := rpc_handlers.NewPutHandler(kn, kn, &knInfo.ID)
 
 	kn.Node.Handle("ping", pingHandler.Handle)
 	kn.Node.Handle("exit", exitHandler.Handle)
-	//kn.Node.Handle("store", storeHandler.Handle)
+	kn.Node.Handle("store", storeHandler.Handle)
 	kn.Node.Handle("get", getHandler.Handle)
+	kn.Node.Handle("find_value", findValueHandler.Handle)
 	kn.Node.Handle("find_node", findNodeHandler.Handle)
 	kn.Node.Handle("put", putHandler.Handle)
+
+	// Register ping, find_value, find_node and reply to update routing table on any message
+	kn.Node.Handle("ping", kn.AddToContactsFromMsg)
+	kn.Node.Handle("find_value", kn.AddToContactsFromMsg)
+	kn.Node.Handle("find_node", kn.AddToContactsFromMsg)
+	kn.Node.Handle("reply", kn.AddToContactsFromMsg)
 
 	node.Start()
 
 	return kn, nil
+}
+
+func (kn *KademliaNode) AddToContactsFromMsg(msg network.Message) error {
+
+	// Remove the rpc prefix by finding the first colon
+	var rest string
+	if i := bytes.IndexByte(msg.Payload, ':'); i != -1 {
+		rest = string(msg.Payload[i+1:])
+	}
+
+	// Unmarshal message to KademliaMessage
+	var km proto_gen.KademliaMessage
+	if err := proto.Unmarshal([]byte(rest), &km); err != nil {
+		return err
+	}
+
+	// Add the node to the routing table
+	kn.RoutingTable.NewContact(common.NodeInfo{
+		ID:   *utils.NewBitArrayFromBytes(km.SenderId, 160),
+		IP:   msg.From.IP,
+		Port: msg.From.Port,
+	})
+	return nil
 }
 
 func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
@@ -202,9 +232,16 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []commo
 	return finalValue, storingNodes, nil
 }
 
-func (kn *KademliaNode) Join(address network.Address) error {
-	// Dummy implementation, always returns not implemented
-	return fmt.Errorf("not implemented")
+func (kn *KademliaNode) Join(node common.NodeInfo) error {
+	// Add contact to routing table
+	kn.RoutingTable.NewContact(node)
+
+	// Perform a lookup on own ID to populate routing table
+	_, err := kn.LookUp(&kn.ID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) {
@@ -464,7 +501,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 		unprobedNodes = append(unprobedNodes, initialNodes...)
 	}
 
-	// Add unprobed nodes to kClosestNodes initially (alpha < k)
+	// Add unprobed nodes to kClosestNodes (alpha < k)
 	for _, n := range unprobedNodes {
 		if !containsNode(kClosestNodes, n) {
 			kClosestNodes = append(kClosestNodes, n)
@@ -624,8 +661,6 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 
 	wg.Wait()
 	close(resultsCh)
-
-	logrus.Infof("%d nodes were probed nodes", len(probed))
 
 	return kClosestNodes, nil
 }

@@ -57,10 +57,10 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 	// Check if bucket is full
 	rt.bucketLock.Lock()
 	bucket := rt.buckets[bucketIndex]
-	rt.bucketLock.Unlock()
 	if len(bucket) < rt.k {
 		// Otherwise add node to end of bucket
 		rt.buckets[bucketIndex] = append(bucket, nodeInfo)
+		rt.bucketLock.Unlock()
 		return
 	}
 
@@ -76,12 +76,12 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 				}
 			}
 			newBucket = append(newBucket, bucket[i])
-			rt.bucketLock.Lock()
 			rt.buckets[bucketIndex] = newBucket
 			rt.bucketLock.Unlock()
 			return
 		}
 	}
+	rt.bucketLock.Unlock()
 
 	// If bucket is full, ping the least recently seen node
 	leastRecent := bucket[0]
@@ -103,17 +103,35 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 	_, err := rt.rpcSender.SendAndAwaitResponse("ping", *address, kademliaMessage)
 
 	if err != nil {
-		// Node did note respond, remove the node and add the new node at the end of the bucket
-		newBucket := make([]NodeInfo, 0)
-		for _, nodeInfo := range bucket {
-			if nodeInfo.ID.ToString() != leastRecent.ID.ToString() {
-				newBucket = append(newBucket, nodeInfo)
+		/*
+			// Node did note respond, remove the node and add the new node at the end of the bucket
+			newBucket := make([]NodeInfo, 0)
+			for _, nodeInfo := range bucket {
+				if nodeInfo.ID.ToString() != leastRecent.ID.ToString() {
+					newBucket = append(newBucket, nodeInfo)
+				}
+			}
+
+			newBucket = append(newBucket, nodeInfo)
+			rt.bucketLock.Lock()
+			rt.buckets[bucketIndex] = newBucket
+			rt.bucketLock.Unlock()
+		*/
+		rt.bucketLock.Lock()
+		bucket := rt.buckets[bucketIndex]
+		// find least recent by id in the current bucket; only remove if found
+		idx := -1
+		for i, n := range bucket {
+			if n.ID.ToString() == leastRecent.ID.ToString() {
+				idx = i
+				break
 			}
 		}
-
-		newBucket = append(newBucket, nodeInfo)
-		rt.bucketLock.Lock()
-		rt.buckets[bucketIndex] = newBucket
+		if idx != -1 {
+			newBucket := append(bucket[:idx], bucket[idx+1:]...)
+			newBucket = append(newBucket, nodeInfo) // add incoming node
+			rt.buckets[bucketIndex] = newBucket
+		}
 		rt.bucketLock.Unlock()
 		return
 	}
@@ -151,8 +169,8 @@ func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {
 	// Add all nodes from the closest bucket
 	rt.bucketLock.RLock()
 	if bucketIndex < len(rt.buckets) {
-		for _, nodeInfo := range rt.buckets[bucketIndex] {
-			closest = append(closest, &nodeInfo)
+		for i := range rt.buckets[bucketIndex] {
+			closest = append(closest, &rt.buckets[bucketIndex][i])
 		}
 	}
 	rt.bucketLock.RUnlock()
@@ -178,8 +196,8 @@ func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {
 		// Check higher bucket
 		if bucketIndex+bucketOffset < len(rt.buckets) {
 			rt.bucketLock.RLock()
-			for _, nodeInfo := range rt.buckets[bucketIndex+bucketOffset] {
-				otherBucketNodes = append(otherBucketNodes, &nodeInfo)
+			for i := range rt.buckets[bucketIndex+bucketOffset] {
+				otherBucketNodes = append(otherBucketNodes, &rt.buckets[bucketIndex+bucketOffset][i])
 				if len(closest) >= rt.k {
 					break
 				}
