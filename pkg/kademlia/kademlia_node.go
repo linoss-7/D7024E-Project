@@ -22,6 +22,7 @@ type KademliaNode struct {
 	ID           utils.BitArray
 	RoutingTable *common.RoutingTable
 	Values       map[*utils.BitArray][]common.DataObject
+	valueMutex   sync.RWMutex
 	republishers map[*utils.BitArray]chan bool
 	repubMutex   sync.RWMutex
 	refreshers   map[*utils.BitArray]chan bool
@@ -118,8 +119,18 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 }
 
 func (kn *KademliaNode) FindValue(key *utils.BitArray) (string, error) {
-	// Not implemented
-	return "", fmt.Errorf("not implemented")
+	// Check only local storage
+	kn.valueMutex.RLock()
+	defer kn.valueMutex.RUnlock()
+	if values, exists := kn.Values[key]; exists && len(values) > 0 {
+		// Ensure the value is not expired
+		if values[0].ExpirationDate.After(time.Now()) {
+			return values[0].Data, nil
+		}
+		// Otherwise, remove expired value
+		delete(kn.Values, key)
+	}
+	return "", nil
 }
 
 func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []common.NodeInfo, error) {
@@ -198,9 +209,10 @@ func (kn *KademliaNode) Join(address network.Address) error {
 
 func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) {
 	// Store the value locally
+	key := utils.ComputeHash(value.Data, 160)
 
 	// Check if the key already exists, if so restart the republish timer
-	key := utils.ComputeHash(value.Data, 160)
+
 	storedValue, err := kn.FindValue(key)
 
 	if err != nil {
@@ -217,12 +229,15 @@ func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) 
 	// Otherwise, add the value to local storage and start a republisher for it
 
 	// Add value to local storage
+	kn.valueMutex.Lock()
+	kn.Values[key] = append(kn.Values[key], value)
+	kn.valueMutex.Unlock()
+
+	// Start republisher
+
 	kn.StartRepublish(key, utils.NewRealTimeTicker(300*time.Second))
 
-	// Add value to local storage
-
-	// Dummy implementation, always returns not implemented
-	return nil, fmt.Errorf("not implemented")
+	return key, nil
 }
 
 func (kn *KademliaNode) Forget(id *utils.BitArray) error {
