@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	//"github.com/sirupsen/logrus"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
+	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/node"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
@@ -20,7 +20,12 @@ type KademliaNode struct {
 	Node         *node.Node
 	ID           utils.BitArray
 	RoutingTable *common.RoutingTable
-	Value        map[*utils.BitArray][]common.DataObject
+	Values       map[*utils.BitArray][]common.DataObject
+	valueMutex   sync.RWMutex
+	republishers map[*utils.BitArray]chan bool
+	repubMutex   sync.RWMutex
+	refreshers   map[*utils.BitArray]chan bool
+	refreshMutex sync.RWMutex
 	k            int
 	alpha        int
 }
@@ -32,30 +37,77 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 		return nil, err
 	}
 
-	node.Start()
-
 	// Create Kademlia node
 	kn, err := &KademliaNode{
-		Node: node,
-		ID:   id,
-		k:	k,
+		Node:  node,
+		ID:    id,
+		k:     k,
 		alpha: alpha,
 	}, nil
-	if err != nil {
-		return nil, err
-	}
 
-	// Create routing table
-	routingTable := common.NewRoutingTable(kn, common.NodeInfo{
+	// Register handlers for the node
+
+	knInfo := common.NodeInfo{
 		ID:   id,
 		IP:   addr.IP,
 		Port: addr.Port,
-	}, k)
+	}
 
-	// Assign routing table to node
-	kn.RoutingTable = routingTable
+	rt := common.NewRoutingTable(kn, knInfo, k)
+
+	kn.RoutingTable = rt
+	kn.Values = make(map[*utils.BitArray][]common.DataObject)
+	kn.k = k
+	kn.alpha = alpha
+
+	pingHandler := rpc_handlers.NewPingHandler(kn, knInfo)
+	exitHandler := rpc_handlers.NewExitHandler(kn, kn, &knInfo.ID)
+	storeHandler := rpc_handlers.NewStoreHandler(kn, kn, &knInfo.ID)
+	findValueHandler := rpc_handlers.NewFindValueHandler(kn, kn.RoutingTable, kn)
+	getHandler := rpc_handlers.NewGetHandler(kn, kn, &knInfo.ID)
+	findNodeHandler := rpc_handlers.NewFindNodeHandler(kn, rt)
+	putHandler := rpc_handlers.NewPutHandler(kn, kn, &knInfo.ID)
+
+	kn.Node.Handle("ping", pingHandler.Handle)
+	kn.Node.Handle("exit", exitHandler.Handle)
+	kn.Node.Handle("store", storeHandler.Handle)
+	kn.Node.Handle("get", getHandler.Handle)
+	kn.Node.Handle("find_value", findValueHandler.Handle)
+	kn.Node.Handle("find_node", findNodeHandler.Handle)
+	kn.Node.Handle("put", putHandler.Handle)
+
+	// Register ping, find_value, find_node and reply to update routing table on any message
+	kn.Node.Handle("ping", kn.AddToContactsFromMsg)
+	kn.Node.Handle("find_value", kn.AddToContactsFromMsg)
+	kn.Node.Handle("find_node", kn.AddToContactsFromMsg)
+	kn.Node.Handle("reply", kn.AddToContactsFromMsg)
+
+	node.Start()
 
 	return kn, nil
+}
+
+func (kn *KademliaNode) AddToContactsFromMsg(msg network.Message) error {
+
+	// Remove the rpc prefix by finding the first colon
+	var rest string
+	if i := bytes.IndexByte(msg.Payload, ':'); i != -1 {
+		rest = string(msg.Payload[i+1:])
+	}
+
+	// Unmarshal message to KademliaMessage
+	var km proto_gen.KademliaMessage
+	if err := proto.Unmarshal([]byte(rest), &km); err != nil {
+		return err
+	}
+
+	// Add the node to the routing table
+	kn.RoutingTable.NewContact(common.NodeInfo{
+		ID:   *utils.NewBitArrayFromBytes(km.SenderId, 160),
+		IP:   msg.From.IP,
+		Port: msg.From.Port,
+	})
+	return nil
 }
 
 func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
@@ -97,18 +149,28 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 }
 
 func (kn *KademliaNode) FindValue(key *utils.BitArray) (string, error) {
-	// Not implemented
-	return "", fmt.Errorf("not implemented")
+	// Check only local storage
+	kn.valueMutex.RLock()
+	defer kn.valueMutex.RUnlock()
+	if values, exists := kn.Values[key]; exists && len(values) > 0 {
+		// Ensure the value is not expired
+		if values[0].ExpirationDate.After(time.Now()) {
+			return values[0].Data, nil
+		}
+		// Otherwise, remove expired value
+		delete(kn.Values, key)
+	}
+	return "", nil
 }
 
-func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, error) {
+func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []common.NodeInfo, error) {
 
 	// Perform a lookup on the key
 
 	nodes, err := kn.LookUp(key)
 
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	// Send find_value RPCs to all those nodes
@@ -154,21 +216,65 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, error) 
 			finalValue = k
 		}
 	}
+
 	if finalValue == "" {
-		return "", fmt.Errorf("value not found in network")
+		return "", nil, fmt.Errorf("value not found in network")
 	}
 
-	return finalValue, nil
+	// Return the nodes that had the value
+	var storingNodes []common.NodeInfo
+	for i, v := range results {
+		if v == finalValue {
+			storingNodes = append(storingNodes, *nodes[i])
+		}
+	}
+
+	return finalValue, storingNodes, nil
 }
 
-func (kn *KademliaNode) Join(address network.Address) error {
-	// Dummy implementation, always returns not implemented
-	return fmt.Errorf("not implemented")
+func (kn *KademliaNode) Join(node common.NodeInfo) error {
+	// Add contact to routing table
+	kn.RoutingTable.NewContact(node)
+
+	// Perform a lookup on own ID to populate routing table
+	_, err := kn.LookUp(&kn.ID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) {
-	// Dummy implementation, always returns not implemented
-	return nil, fmt.Errorf("not implemented")
+	// Store the value locally
+	key := utils.ComputeHash(value.Data, 160)
+
+	// Check if the key already exists, if so restart the republish timer
+
+	storedValue, err := kn.FindValue(key)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if storedValue != "" {
+		kn.repubMutex.RLock()
+		kn.republishers[key] <- true
+		kn.repubMutex.RUnlock()
+		return key, nil
+	}
+
+	// Otherwise, add the value to local storage and start a republisher for it
+
+	// Add value to local storage
+	kn.valueMutex.Lock()
+	kn.Values[key] = append(kn.Values[key], value)
+	kn.valueMutex.Unlock()
+
+	// Start republisher
+
+	kn.StartRepublish(key, utils.NewRealTimeTicker(300*time.Second))
+
+	return key, nil
 }
 
 func (kn *KademliaNode) Forget(id *utils.BitArray) error {
@@ -180,6 +286,18 @@ func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 	// Hash the value to get the key
 
 	key := utils.ComputeHash(value, 160)
+
+	// Check that theres no already a refresher for the key
+	kn.refreshMutex.RLock()
+	if kn.refreshers[key] != nil {
+		kn.refreshMutex.RUnlock()
+		return nil, fmt.Errorf("a refresher already exists for key %s", key.ToString())
+	}
+	kn.refreshMutex.RUnlock()
+
+	// Start a refresher for the key
+
+	kn.StartRefresh(key, utils.NewRealTimeTicker(300*time.Second))
 
 	// Perform a lookup on the key
 
@@ -203,6 +321,26 @@ func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 	return key, nil
 }
 
+func (kn *KademliaNode) Refresh(key *utils.BitArray, value string) error {
+
+	// Check the key in the routing table
+
+	nodes := kn.RoutingTable.FindClosest(*key)
+
+	// Send store RPCs to all those nodes
+
+	for i := 0; i < len(nodes); i++ {
+		go func(n common.NodeInfo) {
+			// Create store message
+			storeMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
+			storeMsg.Body = []byte(value)
+			kn.SendRPC("store", network.Address{IP: n.IP, Port: n.Port}, storeMsg)
+		}(*nodes[i])
+	}
+
+	return nil
+}
+
 func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessage *proto_gen.KademliaMessage) error {
 	kademliaMessage.SenderId = kn.ID.ToBytes()
 
@@ -221,6 +359,115 @@ func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessag
 func (kn *KademliaNode) Exit() error {
 	// Exit the node
 	return kn.Node.Close()
+}
+
+// StartRepublish starts a goroutine that republishes the value for key periodically
+// using the provided Ticker. restartCh triggers an immediate republish when a value is sent to it.
+func (kn *KademliaNode) StartRepublish(key *utils.BitArray, ticker utils.Ticker) (chan bool, chan error) {
+	restartCh := make(chan bool)
+	errCh := make(chan error, 1)
+
+	// Add the restart channel to the republishers map
+	kn.repubMutex.Lock()
+	if kn.republishers == nil {
+		kn.republishers = make(map[*utils.BitArray]chan bool)
+	}
+	kn.republishers[key] = restartCh
+	kn.repubMutex.Unlock()
+
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C():
+				// Republish when ticker ticks
+				val, err := kn.FindValue(key)
+				if val == "" {
+					// Value not found locally, exit republisher
+					return
+				}
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					continue
+				}
+				if err := kn.Refresh(key, val); err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					continue
+				}
+			case <-restartCh:
+				// Reset ticker, extending duration until next tick
+				ticker.Reset()
+			}
+		}
+	}()
+	return restartCh, errCh
+}
+
+func (kn *KademliaNode) StartRefresh(key *utils.BitArray, ticker utils.Ticker) chan error {
+	exitCh := make(chan bool)
+	errCh := make(chan error, 1)
+
+	// Add the exit channel to the refreshers map
+	kn.refreshMutex.Lock()
+	if kn.refreshers == nil {
+		kn.refreshers = make(map[*utils.BitArray]chan bool)
+	}
+	kn.refreshers[key] = exitCh
+	kn.refreshMutex.Unlock()
+
+	go func() {
+		defer ticker.Stop()
+		// Similar to republisher but cant be restarted, only tick and exit
+		for {
+			select {
+			case <-ticker.C():
+				// Refresh when ticker ticks
+				val, err := kn.FindValue(key)
+				if val == "" {
+					// Value not found locally, exit refresher
+					return
+				}
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					continue
+				}
+				if err := kn.Refresh(key, val); err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					continue
+				}
+			case <-exitCh:
+				return
+			}
+		}
+	}()
+	return errCh
+}
+
+func (kn *KademliaNode) StopRefresh(key *utils.BitArray) error {
+	kn.refreshMutex.Lock()
+	ch, exists := kn.refreshers[key]
+	if !exists {
+		// This is not an error, just means theres no refresher for the key
+		return nil
+	}
+	// Remove the entry from the map
+	delete(kn.refreshers, key)
+	kn.refreshMutex.Unlock()
+
+	close(ch)
+	return nil
 }
 
 func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, error) {
@@ -418,16 +665,15 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 	return kClosestNodes, nil
 }
 
-
 // Helper functions
 
 func containsNode(s []*common.NodeInfo, v *common.NodeInfo) bool {
-    for _, x := range s {
-        if x.ID.ToString() == v.ID.ToString() {
-            return true
-        }
-    }
-    return false
+	for _, x := range s {
+		if x.ID.ToString() == v.ID.ToString() {
+			return true
+		}
+	}
+	return false
 }
 
 func findFarthestNodeIndex(nodes []*common.NodeInfo, targetID *utils.BitArray) int {

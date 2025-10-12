@@ -399,6 +399,67 @@ func TestNonRespondingFullNode(t *testing.T) {
 	}
 }
 
+func TestConcurrentFindAndAdd(t *testing.T) {
+	nodeInfo := NodeInfo{
+		IP:   "localhost",
+		Port: 8000,
+		ID:   *utils.NewBitArray(160),
+	}
+
+	mockSender := &mockRPCSender{}
+
+	rt := NewRoutingTable(mockSender, nodeInfo, 4)
+	table := make([][]NodeInfo, 0)
+
+	// Initialize empty buckets
+	for i := 0; i < 160; i++ {
+		bucket := make([]NodeInfo, 0)
+		table = append(table, bucket)
+	}
+
+	rt.InitBuckets(table)
+
+	done := make(chan bool, 20)
+
+	// Start 10 goroutines adding nodes
+	for i := 0; i < 10; i++ {
+		go func(i int) {
+			for j := 0; j < 20; j++ {
+				iVal := rand.Intn(159)
+				id := generateValidId(iVal)
+				rt.NewContact(NodeInfo{
+					IP:   fmt.Sprintf("localhost:%d", 8000+i),
+					Port: 8000 + i,
+					ID:   *id,
+				})
+			}
+			done <- true
+		}(i)
+	}
+
+	// Start 10 goroutines finding closest nodes
+	for i := 0; i < 10; i++ {
+		go func(i int) {
+			for j := 0; j < 20; j++ {
+				id := generateValidId(i)
+				rt.FindClosest(*id)
+			}
+			done <- true
+		}(i)
+
+	}
+
+	// Wait for all goroutines to finish
+	go func() {
+		for i := 0; i < 40; i++ {
+			<-done
+		}
+		close(done)
+	}()
+
+	<-done
+}
+
 func generateValidId(i int) *utils.BitArray {
 	id := utils.NewBitArray(160)
 

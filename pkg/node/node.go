@@ -107,11 +107,22 @@ func (n *Node) Start() {
 
 			n.mu.RLock()
 			handler, exists := n.handlers[msgType]
-			if !exists {
-				handler, exists = n.handlers["default"]
-			}
 			n.mu.RUnlock()
 
+			// Call all default handlers, even if specific handlers exist
+			n.mu.RLock()
+			defaultHandlers := n.handlers["default"]
+			n.mu.RUnlock()
+			if len(defaultHandlers) > 0 {
+				for _, h := range defaultHandlers {
+					//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
+					if err := h.Handler(msg); err != nil {
+						log.Printf("Handler error: %v", err)
+					}
+				}
+			}
+
+			// If specific handlers exist for this message type, call them
 			if exists {
 				for _, handler := range handler {
 					//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
