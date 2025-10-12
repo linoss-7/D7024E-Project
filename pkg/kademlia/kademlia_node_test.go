@@ -257,6 +257,89 @@ func TestRepublishing(t *testing.T) {
 
 }
 
+func TestStoreFindValue(t *testing.T) {
+	// Test local storing and getting on kademlia node
+	net := network.NewMockNetwork(0.0)
+	k := 4
+	alpha := 3
+	node, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160), k, alpha)
+	if err != nil {
+		t.Fatalf("Failed to create Kademlia node: %v", err)
+	}
+
+	value := "Test string for local store"
+	dataObj := common.DataObject{
+		Data:           value,
+		ExpirationDate: time.Now().Add(1 * time.Hour),
+	}
+
+	key, err := node.Store(dataObj)
+	if err != nil {
+		t.Fatalf("Failed to store data object: %v", err)
+	}
+
+	// Try to find the value
+	retrievedValue, err := node.FindValue(key)
+	if err != nil {
+		t.Fatalf("Failed to find value: %v", err)
+	}
+
+	if retrievedValue != value {
+		t.Fatalf("Retrieved value does not match stored value! Got %s, expected %s", retrievedValue, value)
+	}
+}
+
+func TestStoreFindExpiredValue(t *testing.T) {
+	// Test local storing and getting on kademlia node
+	net := network.NewMockNetwork(0.0)
+
+	k := 4
+	alpha := 3
+	node, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160), k, alpha)
+	if err != nil {
+		t.Fatalf("Failed to create Kademlia node: %v", err)
+	}
+	value := "Test string for local store"
+	dataObj := common.DataObject{
+		Data:           value,
+		ExpirationDate: time.Now().Add(-1 * time.Hour), // Expired 1 hour ago
+	}
+
+	key, err := node.Store(dataObj)
+	if err != nil {
+		t.Fatalf("Failed to store data object: %v", err)
+	}
+
+	// Try to find the value
+	retrievedValue, err := node.FindValue(key)
+	if err != nil {
+		t.Fatalf("Failed to find value: %v", err)
+	}
+
+	if retrievedValue != "" {
+		t.Fatalf("Expected empty string for expired value, got %s", retrievedValue)
+	}
+}
+
+func TestFindNonExistentValue(t *testing.T) {
+	// Test finding a non-existent value on the node
+	net := network.NewMockNetwork(0.0)
+	k := 4
+	alpha := 3
+	node, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160), k, alpha)
+	if err != nil {
+		t.Fatalf("Failed to create Kademlia node: %v", err)
+	}
+	key := utils.NewRandomBitArray(160)
+	retrievedValue, err := node.FindValue(key)
+	if err != nil {
+		t.Fatalf("Failed to find value: %v", err)
+	}
+	if retrievedValue != "" {
+		t.Fatalf("Expected empty string for non-existent value, got %s", retrievedValue)
+	}
+}
+
 func TestLookUpFewerNodesThenAlpha(t *testing.T) {
 	// Create a mock network with no message loss
 	net := network.NewMockNetwork(0.0)
