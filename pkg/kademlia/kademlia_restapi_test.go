@@ -13,8 +13,6 @@ import (
 )
 
 func TestPostObject(t *testing.T) {
-	// return immediately, remove when implemented
-	return
 	net := network.NewMockNetwork(0.0)
 
 	selfInfo := common.NodeInfo{
@@ -73,8 +71,6 @@ func TestPostObject(t *testing.T) {
 }
 
 func TestGetObject(t *testing.T) {
-	// return immediately, remove when implemented
-	return
 	net := network.NewMockNetwork(0.0)
 
 	selfInfo := common.NodeInfo{

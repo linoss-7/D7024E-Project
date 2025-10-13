@@ -13,6 +13,7 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/node"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -77,10 +78,11 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 	kn.Node.Handle("put", putHandler.Handle)
 
 	// Register ping, find_value, find_node and reply to update routing table on any message
-	kn.Node.Handle("ping", kn.AddToContactsFromMsg)
-	kn.Node.Handle("find_value", kn.AddToContactsFromMsg)
-	kn.Node.Handle("find_node", kn.AddToContactsFromMsg)
-	kn.Node.Handle("reply", kn.AddToContactsFromMsg)
+	// Handle before to ensure new contacts are added before any other handler is run
+	kn.Node.HandleFirst("ping", kn.AddToContactsFromMsg)
+	kn.Node.HandleFirst("find_value", kn.AddToContactsFromMsg)
+	kn.Node.HandleFirst("find_node", kn.AddToContactsFromMsg)
+	kn.Node.HandleFirst("reply", kn.AddToContactsFromMsg)
 
 	node.Start()
 
@@ -132,7 +134,8 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 		return nil
 	}
 
-	kn.Node.Handle("reply", handlerFunc)
+	id := kn.Node.Handle("reply", handlerFunc)
+	defer kn.Node.RemoveHandler("reply", id)
 
 	// Send message
 	kn.SendRPC(rpc, address, kademliaMessage)
@@ -143,7 +146,7 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 		return resp, nil
 	case err := <-errCh:
 		return nil, err
-	case <-time.After(5 * time.Second):
+	case <-time.After(10 * time.Second):
 		return nil, fmt.Errorf("timeout waiting for response")
 	}
 }
@@ -182,7 +185,7 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []commo
 			findValueMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
 			resp, err := kn.SendAndAwaitResponse("find_value", network.Address{IP: n.IP, Port: n.Port}, findValueMsg)
 			if err != nil {
-				//logrus.Errorf("Error sending find_value to %s: %v", n.ID.ToString(), err)
+				logrus.Errorf("Error sending find_value to %s: %v", n.ID.ToString(), err)
 				resCh <- ""
 				return
 			}
@@ -534,7 +537,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 
 			// Create nodeinfo message for the request
 			nodeInfoMsg := &proto_gen.NodeInfoMessage{
-				ID:   n.ID.ToBytes(),
+				ID:   targetID.ToBytes(),
 				IP:   "",
 				Port: 0,
 			}
@@ -547,6 +550,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 			}
 
 			// Send find_node RPC
+			logrus.Infof("Sending find_node from %s to %s", kn.Node.Address().IP+":"+fmt.Sprintf("%d", kn.Node.Address().Port), n.IP+":"+fmt.Sprintf("%d", n.Port))
 			kMsg, err := kn.SendAndAwaitResponse("find_node", network.Address{IP: n.IP, Port: n.Port}, common.DefaultKademliaMessage(kn.ID, data))
 			if err != nil {
 				resultsCh <- queryResult{from: n, nodes: nil, err: err}
@@ -620,7 +624,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 			inflight--
 
 			if result.err != nil || result.nodes == nil {
-				//logrus.Errorf("Error: %v", result.err)
+				logrus.Errorf("Error: %v", result.err)
 				continue // failed or timed out node
 			}
 
@@ -661,6 +665,17 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 
 	wg.Wait()
 	close(resultsCh)
+
+	// Log the number of visited nodes
+	logrus.Infof("Visited %d nodes", len(probed))
+	/*
+		for _, n := range kClosestNodes {
+			// Log nodes and their distance to targetID
+			logrus.Infof("Node %s at distance %d", n.ID.ToString(), n.ID.Xor(*targetID).ToBigInt().Int64())
+		}
+	*/
+	// Log number of retrieved nodes
+	logrus.Infof("Retrieved %d closest nodes", len(kClosestNodes))
 
 	return kClosestNodes, nil
 }

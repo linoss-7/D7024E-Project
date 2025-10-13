@@ -144,8 +144,6 @@ func TestMultiplePings(t *testing.T) {
 
 func TestRepublishing(t *testing.T) {
 
-	return // Uncomment when store is implemented
-
 	// This test will:
 	// Test republishing of a value, begin by storing a value in the network, then add a new node that should store the value when republishing occurs
 	// Trigger republishing manually by ticking the republish ticker and check that the new node has the value stored
@@ -221,7 +219,7 @@ func TestRepublishing(t *testing.T) {
 	newNodeId := utils.NewBitArrayFromBytes(key.ToBytes(), 160)
 	newNodeId.Set(159, !newNodeId.Get(159)) // Flip last bit to make it close but not the same
 
-	newNode, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8002}, *newNodeId, k, alpha)
+	newNode, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 9000}, *newNodeId, k, alpha)
 	if err != nil {
 		t.Fatalf("Failed to create new node: %v", err)
 	}
@@ -267,7 +265,6 @@ func TestRepublishing(t *testing.T) {
 }
 
 func TestRefresh(t *testing.T) {
-	return // Uncomment when store is implemented
 
 	// Setup 10 kademlia nodes
 	k := 4
@@ -317,7 +314,7 @@ func TestRefresh(t *testing.T) {
 
 	// Refresh the message by ticking the mock ticker
 
-	newNode, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8002}, *newNodeId, k, alpha)
+	newNode, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 9000}, *newNodeId, k, alpha)
 	if err != nil {
 		t.Fatalf("Failed to create new node: %v", err)
 	}

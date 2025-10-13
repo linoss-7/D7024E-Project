@@ -4,6 +4,7 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto" // go get google.golang.org/protobuf (install protobuf)
 )
 
@@ -25,6 +26,7 @@ func (ph *PingHandler) Handle(msg network.Message) error {
 	var km proto_gen.KademliaMessage
 	payload := msg.Payload[5:] // Exclude "ping:" prefix
 	if err := proto.Unmarshal(payload, &km); err != nil {
+		logrus.Infof("Failed to unmarshal ping message: %v", err)
 		return err
 	}
 

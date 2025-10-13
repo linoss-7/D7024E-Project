@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/linoss-7/D7024E-Project/pkg/network"
-	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 )
 
@@ -54,17 +53,9 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 
 	bucketIndex := 159 - diffBit
 
-	// Check if bucket is full
+	// Check if node already exists in bucket
 	rt.bucketLock.Lock()
 	bucket := rt.buckets[bucketIndex]
-	if len(bucket) < rt.k {
-		// Otherwise add node to end of bucket
-		rt.buckets[bucketIndex] = append(bucket, nodeInfo)
-		rt.bucketLock.Unlock()
-		return
-	}
-
-	// Check if node already exists in bucket
 	for i, n := range bucket {
 		if n.ID.ToString() == nodeInfo.ID.ToString() {
 			// Node already exists, update its LastSeen and move it to the end of the bucket
@@ -81,6 +72,15 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 			return
 		}
 	}
+
+	// Check if bucket is full
+	if len(bucket) < rt.k {
+		// Otherwise add node to end of bucket
+		rt.buckets[bucketIndex] = append(bucket, nodeInfo)
+		rt.bucketLock.Unlock()
+		return
+	}
+
 	rt.bucketLock.Unlock()
 
 	// If bucket is full, ping the least recently seen node
@@ -98,25 +98,11 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 		Port: leastRecent.Port,
 	}
 
-	kademliaMessage := &proto_gen.KademliaMessage{}
+	kademliaMessage := DefaultKademliaMessage(rt.OwnerNodeInfo.ID, nil)
 
 	_, err := rt.rpcSender.SendAndAwaitResponse("ping", *address, kademliaMessage)
 
 	if err != nil {
-		/*
-			// Node did note respond, remove the node and add the new node at the end of the bucket
-			newBucket := make([]NodeInfo, 0)
-			for _, nodeInfo := range bucket {
-				if nodeInfo.ID.ToString() != leastRecent.ID.ToString() {
-					newBucket = append(newBucket, nodeInfo)
-				}
-			}
-
-			newBucket = append(newBucket, nodeInfo)
-			rt.bucketLock.Lock()
-			rt.buckets[bucketIndex] = newBucket
-			rt.bucketLock.Unlock()
-		*/
 		rt.bucketLock.Lock()
 		bucket := rt.buckets[bucketIndex]
 		// find least recent by id in the current bucket; only remove if found
