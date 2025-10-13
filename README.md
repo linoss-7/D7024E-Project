@@ -1,200 +1,442 @@
-# Go Project Template
+# Kademlia DHT Implementation in Go
 
-This repository provides example code for setting up an empty Go project following best practices.
-For more information on recommended project structure, please look at this info [Golang Standards Project Layout](https://github.com/golang-standards/project-layout).
+A distributed hash table (DHT) implementation based on the Kademlia protocol, written in Go. This project provides both a CLI interface and a REST API for interacting with a Kademlia network, enabling distributed storage and retrieval of key-value pairs across multiple nodes.
 
-# External Packages
-The template project uses the following external packages:
-- A CLI based on the [Cobra](https://github.com/spf13/cobra) framework. This framework is used by many other Golang project, e.g Kubernetes, Docker etc.
-- Logging via [Logrus](https://github.com/sirupsen/logrus)
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [REST API](#rest-api)
+- [Docker Deployment](#docker-deployment)
+- [Development](#development)
+- [Testing](#testing)
 
-## Project structure 
-- **`cmd/`**  
-  Contains the application's main executable logic. This is where `main.go` lives.
+## Overview
 
-- **`internal/`**  
-  Contains private application code. Anything inside `internal/` cannot be imported from outside the project (enforced by the Go compiler).
+Kademlia is a peer-to-peer distributed hash table that uses XOR distance metric for efficient routing. This implementation includes:
+- **Distributed Storage**: Store and retrieve data across multiple nodes
+- **Peer Discovery**: Automatic discovery and management of network peers
+- **Fault Tolerance**: Data replication and automatic republishing
+- **REST API**: HTTP interface for network operations
+- **CLI Tools**: Command-line interface for network interaction
 
-- **`pkg/`**  
-  Contains public libraries or utilities that can be imported by other projects if needed.
+## Features
 
-- **`bin/`**  
-  Stores built binaries, generated via the `Makefile`.
+- ✅ Complete Kademlia protocol implementation
+- ✅ UDP-based network communication with Protocol Buffers
+- ✅ RESTful API for PUT, GET, DELETE operations
+- ✅ CLI commands for network management
+- ✅ Docker support with docker-compose orchestration
+- ✅ Automatic data republishing and refreshing
+- ✅ Configurable routing table parameters (k-bucket size, alpha)
+- ✅ Comprehensive test coverage
 
-- **`Makefile`**  
-  Automates build tasks such as compiling, building Docker images, running tests, etc.
+## Architecture
 
-- **`go.mod` and `go.sum`**  
-  Define module requirements and manage dependencies.
+### Project Structure
+```
+.
+├── cmd/                    # Main application entry point
+│   └── main.go            # Binary executable logic
+├── internal/              # Private application code
+│   └── cli/               # CLI command implementations
+│       ├── start_node.go  # Start a Kademlia node
+│       ├── put.go         # Store data in the network
+│       ├── get.go         # Retrieve data from the network
+│       ├── ping.go        # Ping nodes
+│       ├── exit.go        # Exit from network
+│       └── version.go     # Version information
+├── pkg/                   # Public libraries
+│   ├── kademlia/          # Core Kademlia implementation
+│   │   ├── kademlia_node.go      # Node logic
+│   │   ├── kademlia_restapi.go   # REST API endpoints
+│   │   ├── common/               # Shared types (routing table, data objects)
+│   │   └── rpc_handlers/         # RPC message handlers
+│   ├── network/           # Network layer (UDP communication)
+│   ├── utils/             # Utilities (BitArray, hashing, etc.)
+│   └── proto_gen/         # Generated Protocol Buffer code
+├── proto/                 # Protocol Buffer definitions
+├── Makefile              # Build automation
+├── Dockerfile            # Container image definition
+├── docker-compose.yml    # Multi-node orchestration
+└── compose_generator.py  # Generate docker-compose for N nodes
+```
 
-##  Quick Start
-### Build the project
+### Key Components
+
+- **KademliaNode**: Core node implementation managing routing table, storage, and network operations
+- **RoutingTable**: Manages k-buckets for efficient peer discovery
+- **Network Layer**: UDP-based communication using Protocol Buffers for message serialization
+- **RPC Handlers**: Handle protocol messages (PING, FIND_NODE, FIND_VALUE, STORE, etc.)
+- **REST API**: HTTP interface for external applications
+
+## Quick Start
+
+### Prerequisites
+- Go 1.23.5 or higher
+- Docker (optional, for containerized deployment)
+- Make (optional, for build automation)
+
+### Build the Project
+
 ```bash
+# Install dependencies
 go mod tidy
+
+# Build the binary
 make build
 ```
 
-### Run the binary
+This creates the binary at `./bin/helloworld`.
+
+### Run a Single Node
+
 ```bash
-./bin/helloworld talk
+# Start a Kademlia node on port 8001
+./bin/helloworld start_node 8001
 ```
 
-or type:
+The node will:
+- Listen for UDP messages on the specified port
+- Start a REST API server on port + 1 (e.g., 8002 for HTTP)
+- Save node information to `~/.kademlia/nodes/node_info.json`
+
+### Interact with the Network
+
+Once you have a node running, you can interact with it using CLI commands:
+
 ```bash
-go run cmd/main.go talk
+# Store a value
+./bin/helloworld put "Hello, Kademlia!"
+# Output: Value stored with key: <hex-encoded-key>
+
+# Retrieve a value
+./bin/helloworld get <key>
+# Output: Value retrieved for key: Hello, Kademlia!
+
+# Ping the node
+./bin/helloworld ping
+# Output: Ping successful! Response RPC ID: <id> from <node-id>
+
+# Check version
+./bin/helloworld version
+# Output: <commit-hash>
+#         <build-time>
 ```
 
-```console
-ERRO[0000] Error detected                                Error="This is an error"
-INFO[0000] Talking...                                    Msg="Hello, World!" OtherMsg="Logging is cool!"
-Hello, World!
+## Usage
+
+### CLI Commands
+
+#### `start_node <port>`
+Start a new Kademlia node listening on the specified port.
+
+```bash
+./bin/helloworld start_node 8001
 ```
 
+The node will:
+- Create a 160-bit random node ID
+- Initialize the routing table with k=4 buckets
+- Start the UDP listener and REST API server
+- Bootstrap by connecting to known nodes in the network
 
-### Build and run Docker container
+#### `put <value>`
+Store a value in the Kademlia network.
+
 ```bash
+./bin/helloworld put "My data"
+```
+
+Returns the key (SHA-1 hash) where the value is stored. The CLI automatically:
+- Reads local node information from `~/.kademlia/nodes/node_info.json`
+- Creates a temporary node to send the PUT request
+- Finds the K closest nodes to the key
+- Stores the value on those nodes
+
+#### `get <key>`
+Retrieve a value from the network using its key.
+
+```bash
+./bin/helloworld get <hex-key>
+```
+
+Returns the value if found. The system performs a FIND_VALUE lookup, which:
+- Iteratively queries nodes closer to the key
+- Returns the value if found
+- Returns closest nodes if not found
+
+#### `ping`
+Send a PING RPC to verify node connectivity.
+
+```bash
+./bin/helloworld ping
+```
+
+Verifies that the local node can communicate with the network.
+
+#### `exit <key>`
+Signal that this node is exiting the network.
+
+```bash
+./bin/helloworld exit <key>
+```
+
+Notifies the network that the node is leaving, allowing other nodes to update their routing tables.
+
+#### `version`
+Display build version and timestamp.
+
+```bash
+./bin/helloworld version
+```
+
+### Global Flags
+
+- `-v, --verbose`: Enable verbose output for debugging
+
+## REST API
+
+The REST API server starts automatically when you run `start_node` on port `<node-port> + 1`.
+
+### Endpoints
+
+#### POST `/objects`
+Store data in the network.
+
+**Request:**
+```json
+{
+  "data": "Hello, World!"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "value": "Hello, World!"
+}
+```
+
+**Headers:**
+- `Location: /objects/<hex-key>`
+
+#### GET `/objects?id=<hex-key>`
+Retrieve data by key.
+
+**Response (200 OK):**
+```json
+[
+  {
+    "data": "Hello, World!",
+    "owner": "<node-id>",
+    "timestamp": "2025-10-13T12:00:00Z"
+  }
+]
+```
+
+#### DELETE `/objects?id=<hex-key>`
+Remove data from local storage (if this node is refreshing it).
+
+**Response (204 No Content)**
+
+#### POST `/exit`
+Gracefully shut down the node.
+
+**Response (200 OK)**
+
+### Example cURL Commands
+
+```bash
+# Store data
+curl -X POST http://localhost:8002/objects \
+  -H "Content-Type: application/json" \
+  -d '{"data":"Hello, Kademlia!"}'
+
+# Get data
+curl "http://localhost:8002/objects?id=<hex-key>"
+
+# Delete data
+curl -X DELETE "http://localhost:8002/objects?id=<hex-key>"
+
+# Exit node
+curl -X POST http://localhost:8002/exit
+```
+
+## Docker Deployment
+
+### Single Container
+
+Build and run a single node:
+
+```bash
+# Build image
 make container
+# or
+docker build -t go-node:latest .
+
+# Run a node
+docker run -p 8001:8001/udp -p 8002:8002 go-node:latest start_node 8001
 ```
 
-Or without Makefile: 
+### Multi-Node Network
+
+Use docker-compose to deploy a multi-node network:
 
 ```bash
-docker build -t test/helloworld .
+# Deploy default configuration (50 nodes)
+docker-compose up
+
+# Scale to custom number of nodes
+python compose_generator.py  # Edit NUM_NODES variable
+docker-compose up
 ```
 
-```console
-Sending build context to Docker daemon  4.503MB
-Step 1/4 : FROM alpine
- ---> b0c9d60fc5e3
-Step 2/4 : WORKDIR /
- ---> Using cache
- ---> 813578363918
-Step 3/4 : COPY ./bin/helloworld /bin
- ---> 8bf1ce271011
-Step 4/4 : CMD ["helloworld", "talk"]
- ---> Running in 5dbb96d0225d
-Removing intermediate container 5dbb96d0225d
- ---> 0d4933ba1303
-Successfully built 0d4933ba1303
-Successfully tagged test/helloworld:latest
+The compose configuration:
+- Creates a custom network for inter-node communication
+- Deploys nodes on sequential ports (8001, 8002, 8003, ...)
+- Each node automatically discovers and connects to others
+
+### Custom Network Size
+
+Edit `compose_generator.py`:
+```python
+NUM_NODES = 10  # Set desired number of nodes
+BASE_PORT = 8001
 ```
+
+Then regenerate and deploy:
+```bash
+python compose_generator.py > docker-compose.yml
+docker-compose up
+```
+
+## Development
+
+### External Packages
+
+This project uses:
+- **[Cobra](https://github.com/spf13/cobra)**: CLI framework (used by Kubernetes, Docker, etc.)
+- **[Logrus](https://github.com/sirupsen/logrus)**: Structured logging
+- **[Protocol Buffers](https://github.com/protocolbuffers/protobuf)**: Message serialization
+- **[Google UUID](https://github.com/google/uuid)**: UUID generation
+
+### Building
 
 ```bash
-docker run --rm test/helloworld
+# Build binary
+make build
+
+# Build Docker image
+make container
+
+# Install binary system-wide
+make install
 ```
 
-```console
-docker run --rm test/helloworld
-Hello, World!
-time="2025-04-29T19:15:27Z" level=error msg="Error detected" Error="This is an error"
-time="2025-04-29T19:15:27Z" level=info msg=Talking... Msg="Hello, World!" OtherMsg="Logging is cool!"
-```
+### Code Coverage
 
-### Running Tests
-To run all tests;
 ```bash
-make test 
+make coverage
 ```
 
-Remember to update Makefile if adding more source directories with tests.
+This runs tests with coverage analysis across all packages.
 
-To run all tests in a directory:
+## Testing
+
+### Run All Tests
+
 ```bash
-cd pkg/helloworld
+make test
+```
+
+This runs tests with the race detector enabled across:
+- `pkg/kademlia`
+- `pkg/kademlia/common`
+- `pkg/kademlia/rpc_handlers`
+- `pkg/network`
+- `pkg/node`
+- `pkg/utils`
+
+### Run Tests for Specific Package
+
+```bash
+cd pkg/kademlia
 go test -v --race
 ```
 
-Always use the `--race` flag when running tests to detect race conditions during execution.  
-The `--race` flag enables the Go race detector, helping you catch concurrency issues early during development.
+### Run Individual Test
 
-To run individual test:
 ```bash
-cd pkg/helloworld
-go test -v --race -test.run=TestNewHelloWorld
+cd pkg/kademlia
+go test -v --race -run=TestKademliaNode
 ```
 
-```console
-=== RUN   TestNewHelloWorld
-ERRO[0000] Error detected                                Error="This is an error"
+**Important:** Always use the `--race` flag to detect race conditions in concurrent code.
+
+### Test Coverage
+
+```bash
+# Generate coverage report
+make coverage
+
+# View HTML coverage report
+go tool cover -html=coverage.out
 ```
 
-## Change the Project Name
-To customize the project name, follow these steps:
+## Configuration
 
-1. Create a new Git repo.
+### Kademlia Parameters
 
-2. **Edit `go.mod`** 
-   Change the module path from: `module github.com/linoss-7/D7024E-Project` to your new project path.
+Default configuration (in `start_node.go`):
+- **k**: 4 (bucket size, number of nodes per k-bucket)
+- **alpha**: 3 (parallelism parameter for lookups)
+- **ID length**: 160 bits (compatible with SHA-1)
+- **Republish interval**: 1 hour
+- **Refresh interval**: 1 hour
 
-3. **Update Import Paths**  
-Modify the import paths in the following files:
+These can be modified in the source code for experimentation.
 
-- `internal/cli/version.go`  
-  Line 6:
-  ```go
-  "github.com/linoss-7/D7024E-Project/pkg/build"
-  ```
+### Node Storage
 
-- `internal/cli/talk.go`  
-  Line 4:
-  ```go
-  "github.com/linoss-7/D7024E-Project/pkg/helloworld"
-  ```
+Node information is stored at:
+```
+~/.kademlia/nodes/node_info.json
+```
 
-- `cmd/main.go`  
-  Lines 4–5:
-  ```go
-  "github.com/linoss-7/D7024E-Project/internal/cli"
-  "github.com/linoss-7/D7024E-Project/pkg/build"
-  ```
-
-Replace each instance of `github.com/linoss-7/D7024E-Project` with your new module name.
-
-4. Update Goreleaser
-Change the `binary` name to `helloworld` in the `.goreleaser.yml` file.
-
-5. Update Dockerfile 
-Change the `helloworld` in the `Dockerfile` file.
-
-6. Update Makefile
-Change binary name, and container name:
-
-```console
-BINARY_NAME := helloworld
-BUILD_IMAGE ?= test/helloworld
-PUSH_IMAGE ?= test/helloworld:v1.0.0
+This file contains:
+```json
+{
+  "id": "<160-bit-id>",
+  "ip": "<node-hostname>",
+  "port": <udp-port>
+}
 ```
 
 ## Continuous Integration
-GitHub will automatically run tests (`make test`) when pushing changes to the `main` branch.
 
-Take a look at these configuration files for CI/CD setup:
+GitHub Actions automatically runs tests on push to `main`:
+- `.github/workflows/go.yml`: Go tests
+- `.github/workflows/docker_master.yaml`: Docker build
+- `.github/workflows/releaser.yaml`: Release automation
 
-- `.github/workflows/docker_master.yaml`
-- `.github/workflows/go.yml`
-- `.github/workflows/releaser.yaml`
-- `.goreleaser.yml`
+**Releases:** Create a new release on GitHub to trigger automated binary builds via GoReleaser.
 
-**Note:**  
-The Goreleaser workflow can be used to automatically build and publish binaries on GitHub.  
-Click the **Draft a new release** button to create a new release.  
-Published releases will appear here: [GitHub Releases - linoss-7/D7024E-Project](https://github.com/linoss-7/D7024E-Project/releases)
+## Contributing
 
-The Docker workflow will automatically build and publish a Docker image on GitHub.  
-See this page: [GitHub Packages - linoss-7/D7024E-Project](https://github.com/linoss-7/D7024E-Project/pkgs/container/linoss-7/D7024E-Project)
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `make test`
+5. Submit a pull request
 
-## Other tips
-- Run `go mod tidy` to clean up and verify dependencies.
-- To store all dependencies in the `./vendor` directory, run:
+## License
 
-  ```sh
-  go mod vendor
-  ```
-- Install and use Github Co-pilot! It is very good at generating logging statement.
-- Note that build time and current Github take is injected into the binary. Very useful for debugging to know which version you are using. 
+This project is part of the D7024E Distributed Systems course at Luleå University of Technology.
 
-```console
-./bin/helloworld version                                                                                                                                                              21:53:42
-ab76edd
-2025-04-29T19:35:04Z
-```
+## Acknowledgments
+
+- Based on the [Kademlia paper](https://pdos.csail.mit.edu/~petar/papers/maymounkov-kademlia-lncs.pdf) by Maymounkov and Mazières
+- Built following [Golang Standards Project Layout](https://github.com/golang-standards/project-layout)
