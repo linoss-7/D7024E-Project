@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia"
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
-	"github.com/linoss-7/D7024E-Project/pkg/kademlia/rpc_handlers"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 	"github.com/spf13/cobra"
@@ -42,28 +42,11 @@ var StartNodeCmd = &cobra.Command{
 
 		id := utils.NewRandomBitArray(160)
 
-		newNode, err := kademlia.NewKademliaNode(net, addr, *id, k, alpha)
+		newNode, err := kademlia.NewKademliaNode(net, addr, *id, k, alpha, 3600)
 		if err != nil {
 			cmd.Println("Failed to create node:", err)
 			return
 		}
-
-		newNodeInfo := common.NodeInfo{
-			ID:   *id,
-			IP:   addr.IP,
-			Port: addr.Port,
-		}
-
-		// Register ping and find_node handlers
-
-		pingHandler := rpc_handlers.NewPingHandler(newNode, newNodeInfo)
-		findNodeHandler := rpc_handlers.NewFindNodeHandler(newNode, newNode.RoutingTable)
-
-		// Register handlers to the node in the kademlia_node struct
-
-		newNode.Node.Handle("ping", pingHandler.Handle)
-		newNode.Node.Handle("find_node", findNodeHandler.Handle)
-
 		// Save the ip and port to json file so commands know where to send
 
 		go func() {
@@ -99,6 +82,29 @@ var StartNodeCmd = &cobra.Command{
 				return
 			}
 		}()
+
+		// Wait 30 seconds then attempt to join the network via the next node
+		if iport != 8000 {
+			bootstrapAddr := network.Address{
+				IP:   "node_" + strconv.Itoa(iport-8002),
+				Port: iport - 1,
+			}
+
+			bootstrapInfo := common.NodeInfo{
+				IP:   bootstrapAddr.IP,
+				Port: bootstrapAddr.Port,
+			}
+
+			go func() {
+				time.Sleep(30 * time.Second)
+				err := newNode.Join(bootstrapInfo)
+				if err != nil {
+					cmd.Println("Failed to join network:", err)
+					return
+				}
+				cmd.Println("Successfully joined the network via", bootstrapAddr)
+			}()
+		}
 
 		select {} // Block forever, keeping the node alive
 

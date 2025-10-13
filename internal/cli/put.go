@@ -22,6 +22,11 @@ var PutCmd = &cobra.Command{
 	Short: "Put a value in the Kademlia network",
 	Long:  "Put a value in the Kademlia network",
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) < 1 {
+			cmd.Println("Usage: put <value>")
+			return
+		}
+
 		value := args[0]
 
 		net := network.NewUDPNetwork()
@@ -57,7 +62,7 @@ var PutCmd = &cobra.Command{
 
 		// Create a new kademlia node to send and recieve rpcs
 		id := utils.NewRandomBitArray(160)
-		newNode, err := kademlia.NewKademliaNode(net, addr, *id, 4, 3)
+		newNode, err := kademlia.NewKademliaNode(net, addr, *id, 4, 3, 10.0)
 		if err != nil {
 			cmd.Println("Failed to create node:", err)
 			return
@@ -67,7 +72,7 @@ var PutCmd = &cobra.Command{
 
 		msg := common.DefaultKademliaMessage(*id, []byte(value))
 
-		resp, err := newNode.SendAndAwaitResponse("put", network.Address{IP: info.IP, Port: info.Port}, msg)
+		resp, err := newNode.SendAndAwaitResponse("put", network.Address{IP: info.IP, Port: info.Port}, msg, 10.0)
 
 		if err != nil {
 			cmd.Println("Put failed:", err)
@@ -83,5 +88,7 @@ var PutCmd = &cobra.Command{
 		key := utils.NewBitArrayFromBytes(resp.Body, 160)
 		hexKey := hex.EncodeToString(key.ToBytes())
 		cmd.Println("Value stored with key:", hexKey)
+		// Close the node's node to free up resources
+		newNode.Exit()
 	},
 }

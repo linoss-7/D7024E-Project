@@ -56,7 +56,7 @@ var ExitCmd = &cobra.Command{
 
 		// Create a new kademlia node to send and recieve rpcs
 		id := utils.NewRandomBitArray(160)
-		newNode, err := kademlia.NewKademliaNode(net, addr, *id, 4, 3)
+		newNode, err := kademlia.NewKademliaNode(net, addr, *id, 4, 3, 3600)
 		if err != nil {
 			cmd.Println("Failed to create node:", err)
 			return
@@ -66,7 +66,7 @@ var ExitCmd = &cobra.Command{
 
 		msg := common.DefaultKademliaMessage(*id, []byte(key))
 
-		resp, err := newNode.SendAndAwaitResponse("exit", network.Address{IP: info.IP, Port: info.Port}, msg)
+		resp, err := newNode.SendAndAwaitResponse("exit", network.Address{IP: info.IP, Port: info.Port}, msg, 10.0)
 
 		if err != nil {
 			cmd.Println("Exit failed:", err)

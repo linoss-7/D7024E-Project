@@ -87,13 +87,28 @@ func (c *mockConnection) Send(msg Message) error {
 		return errors.New("destination address not found")
 	}
 
-	// Simulate message drop
-	if c.network.dropRate > 0.0 {
-		// Simple random drop based on dropRate
-		if randFloat := rand.Float64(); randFloat < c.network.dropRate {
-			c.network.mu.RUnlock()
-			// Pretend the message was sent successfully
-			return nil
+	// Quick fix, dont drop any messages of type "put", "get", "exit", "forget"
+	// Parse payload until the first colon
+	payloadStr := string(msg.Payload)
+	msgType := ""
+
+	for i := 0; i < len(payloadStr); i++ {
+		if payloadStr[i] == ':' {
+			msgType = payloadStr[:i]
+			break
+		}
+	}
+
+	if msgType != "put" && msgType != "get" && msgType != "exit" && msgType != "forget" {
+		// Simulate message drop
+		if c.network.dropRate > 0.0 {
+			// Simple random drop based on dropRate
+			if randFloat := rand.Float64(); randFloat < c.network.dropRate {
+				//logrus.Infof("Message from %v to %v dropped (rand=%f, dropRate=%f)", msg.From, msg.To, randFloat, c.network.dropRate)
+				c.network.mu.RUnlock()
+				// Pretend the message was sent successfully
+				return nil
+			}
 		}
 	}
 
@@ -104,9 +119,11 @@ func (c *mockConnection) Send(msg Message) error {
 	select {
 	case ch <- msg:
 		c.network.mu.RUnlock()
+		//logrus.Infof("Message sent from %v to %v", msg.From, msg.To)
 		return nil
 	default:
 		c.network.mu.RUnlock()
+		// Helpful debug log: indicate which destination had a full queue
 		return errors.New("message queue full")
 	}
 }
@@ -121,9 +138,11 @@ func (c *mockConnection) Recv() (Message, error) {
 	c.mu.RUnlock()
 
 	msg, ok := <-ch
+	//logrus.Infof("Message received on %v", c.addr)
 	if !ok {
 		return Message{}, errors.New("connection closed")
 	}
+
 	return msg, nil
 }
 

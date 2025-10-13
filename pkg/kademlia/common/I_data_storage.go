@@ -7,6 +7,6 @@ import (
 type IDataStorage interface {
 	Store(value DataObject) (*utils.BitArray, error)
 	StoreInNetwork(value string) (*utils.BitArray, error)
-	FindValueInNetwork(key *utils.BitArray) (string, []NodeInfo, error)
+	FindValueInNetwork(key *utils.BitArray) (string, []*NodeInfo, error)
 	FindValue(key *utils.BitArray) (string, error)
 }

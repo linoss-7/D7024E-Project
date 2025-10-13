@@ -12,13 +12,14 @@ import (
 
 // Node provides a unified abstraction for both sending and receiving messages
 type Node struct {
-	addr       network.Address
-	network    network.Network
-	connection network.Connection
-	handlers   map[string][]HandlerEntry
-	mu         sync.RWMutex
-	closed     bool
-	closeMu    sync.RWMutex
+	addr          network.Address
+	network       network.Network
+	connection    network.Connection
+	handlers      map[string][]HandlerEntry
+	firstHandlers map[string][]HandlerEntry
+	mu            sync.RWMutex
+	closed        bool
+	closeMu       sync.RWMutex
 }
 
 // MessageHandler is a function that processes incoming messages
@@ -37,10 +38,11 @@ func NewNode(network network.Network, addr network.Address) (*Node, error) {
 	}
 
 	return &Node{
-		addr:       addr,
-		network:    network,
-		connection: connection,
-		handlers:   make(map[string][]HandlerEntry),
+		addr:          addr,
+		network:       network,
+		connection:    connection,
+		handlers:      make(map[string][]HandlerEntry),
+		firstHandlers: make(map[string][]HandlerEntry),
 	}, nil
 }
 
@@ -69,6 +71,17 @@ func (n *Node) RemoveHandler(msgType string, id string) {
 			break
 		}
 	}
+}
+
+func (n *Node) HandleFirst(msgType string, handler MessageHandler) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	id := uuid.New().String()
+	n.firstHandlers[msgType] = append(n.firstHandlers[msgType], HandlerEntry{
+		ID:      id,
+		Handler: handler,
+	})
+	return id
 }
 
 // Start begins listening for incoming messages
@@ -105,31 +118,46 @@ func (n *Node) Start() {
 				}
 			}
 
+			// Copy the handlers slice for this msgType while holding the lock
+			// to avoid races if another goroutine removes or modifies handlers.
 			n.mu.RLock()
-			handler, exists := n.handlers[msgType]
+			origHandlers, exists := n.handlers[msgType]
+			handlersCopy := make([]HandlerEntry, len(origHandlers))
+			copy(handlersCopy, origHandlers)
 			n.mu.RUnlock()
 
-			// Call all default handlers, even if specific handlers exist
+			// Call first handlers
+			// Copy first-handlers under lock then run them without holding the lock
 			n.mu.RLock()
-			defaultHandlers := n.handlers["default"]
+			origFirstHandlers, firstExists := n.firstHandlers[msgType]
+			firstHandlersCopy := make([]HandlerEntry, len(origFirstHandlers))
+			copy(firstHandlersCopy, origFirstHandlers)
 			n.mu.RUnlock()
-			if len(defaultHandlers) > 0 {
-				for _, h := range defaultHandlers {
-					//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
-					if err := h.Handler(msg); err != nil {
-						log.Printf("Handler error: %v", err)
-					}
+			if firstExists {
+				for _, h := range firstHandlersCopy {
+					go h.Handler(msg)
+				}
+			}
+
+			// Call default handlers
+			//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
+			// Copy default handlers under lock then execute them
+			n.mu.RLock()
+			origDefaultHandlers := n.handlers["default"]
+			defaultHandlersCopy := make([]HandlerEntry, len(origDefaultHandlers))
+			copy(defaultHandlersCopy, origDefaultHandlers)
+			n.mu.RUnlock()
+			if len(defaultHandlersCopy) > 0 {
+				for _, h := range defaultHandlersCopy {
+					go h.Handler(msg)
 				}
 			}
 
 			// If specific handlers exist for this message type, call them
 			if exists {
-				for _, handler := range handler {
-					//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
-					if err := handler.Handler(msg); err != nil {
-						log.Printf("Handler error: %v", err)
-					}
-
+				// handlersCopy was created above when we copied handlers for this msgType
+				for _, h := range handlersCopy {
+					go h.Handler(msg)
 				}
 			}
 		}

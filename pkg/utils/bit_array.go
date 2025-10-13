@@ -30,11 +30,19 @@ func NewRandomBitArray(length int) *BitArray {
 }
 
 func NewBitArrayFromBytes(data []byte, length int) *BitArray {
-	if len(data)*8 < length {
+	// Ensure we have enough bytes for the requested bit length
+	byteLen := (length + 7) / 8
+	if len(data) < byteLen {
 		panic("byte slice too short for the specified length")
 	}
+	// Copy only the bytes needed for the requested length. This ensures the
+	// returned BitArray has the correct underlying storage size (e.g., 20
+	// bytes for 160 bits) rather than keeping any extra bytes (like a 32-byte
+	// SHA-256 digest).
+	bits := make([]byte, byteLen)
+	copy(bits, data[:byteLen])
 	return &BitArray{
-		bits:   data[:byte(len(data))],
+		bits:   bits,
 		length: length,
 	}
 }

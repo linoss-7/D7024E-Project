@@ -6,6 +6,6 @@ import (
 )
 
 type IRPCSender interface {
-	SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error)
+	SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage, timeout float32) (*proto_gen.KademliaMessage, error)
 	SendRPC(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) error
 }

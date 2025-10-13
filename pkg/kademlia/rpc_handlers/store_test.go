@@ -15,7 +15,7 @@ func TestStoreHandler_ValidRequest(t *testing.T) {
 	rpcSender := &StoringRPCSender{messages: make(map[string][]byte)}
 	senderId := utils.NewBitArray(160)
 
-	handler := NewStoreHandler(rpcSender, storage, senderId)
+	handler := NewStoreHandler(rpcSender, storage, senderId, 10.0)
 
 	payload, err := proto.Marshal(common.DefaultKademliaMessage(*senderId, []byte("test payload")))
 	if err != nil {

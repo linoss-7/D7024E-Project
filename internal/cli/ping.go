@@ -54,7 +54,7 @@ var PingCmd = &cobra.Command{
 
 		// Create a new kademlia node to send and recieve rpcs
 		id := utils.NewRandomBitArray(160)
-		newNode, err := kademlia.NewKademliaNode(net, addr, *id, 4, 3)
+		newNode, err := kademlia.NewKademliaNode(net, addr, *id, 4, 3, 10.0)
 		if err != nil {
 			cmd.Println("Failed to create node:", err)
 			return
@@ -62,7 +62,7 @@ var PingCmd = &cobra.Command{
 
 		// Send a ping rpc to the node
 
-		resp, err := newNode.SendAndAwaitResponse("ping", network.Address{IP: info.IP, Port: info.Port}, common.DefaultKademliaMessage(*id, nil))
+		resp, err := newNode.SendAndAwaitResponse("ping", network.Address{IP: info.IP, Port: info.Port}, common.DefaultKademliaMessage(*id, nil), 10.0)
 
 		if err != nil {
 			cmd.Println("Ping failed:", err)

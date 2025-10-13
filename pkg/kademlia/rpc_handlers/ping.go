@@ -22,7 +22,7 @@ func NewPingHandler(rpcSender common.IRPCSender, selfInfo common.NodeInfo) *Ping
 
 func (ph *PingHandler) Handle(msg network.Message) error {
 	// Echo reply with the same RPCId
-	//logrus.Infof("Node %s received ping from %s", ph.ID.ToString(), msg.From.String())
+	//logrus.Infof("Node %s received ping from %s", ph.SelfInfo.IP+":"+fmt.Sprintf("%d", ph.SelfInfo.Port), msg.From.IP+":"+fmt.Sprintf("%d", msg.From.Port))
 	var km proto_gen.KademliaMessage
 	payload := msg.Payload[5:] // Exclude "ping:" prefix
 	if err := proto.Unmarshal(payload, &km); err != nil {
@@ -38,6 +38,7 @@ func (ph *PingHandler) Handle(msg network.Message) error {
 
 	// Send response back to the requester
 	ph.RPCSender.SendRPC("reply", addr, replyMsg)
+	//logrus.Infof("Node %s replied to ping from %s", ph.SelfInfo.IP+":"+fmt.Sprintf("%d", ph.SelfInfo.Port), msg.From.IP+":"+fmt.Sprintf("%d", msg.From.Port))
 	return nil
 }
 

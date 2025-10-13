@@ -5,7 +5,6 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -22,7 +21,7 @@ func NewFindNodeHandler(rpcSender common.IRPCSender, table *common.RoutingTable)
 }
 
 func (fnh *FindNodeHandler) Handle(msg network.Message) error {
-	logrus.Infof("Node received find_node request from %s", msg.From.String())
+	//logrus.Infof("Node received find_node request from %s", msg.From.String())
 	// Unmarshal message to KademliaMessage
 
 	var km proto_gen.KademliaMessage
