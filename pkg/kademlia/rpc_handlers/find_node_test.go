@@ -308,7 +308,7 @@ func (s *StoringRPCSender) SendRPC(rpc string, address network.Address, kademlia
 	return nil
 }
 
-func (s *StoringRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
+func (s *StoringRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage, timeout float32) (*proto_gen.KademliaMessage, error) {
 	s.messages[rpc] = kademliaMessage.Body
 	return &proto_gen.KademliaMessage{}, nil
 }

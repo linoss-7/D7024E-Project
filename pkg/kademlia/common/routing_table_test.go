@@ -490,7 +490,7 @@ func generateValidId(i int) *utils.BitArray {
 
 type mockRPCSender struct{}
 
-func (m *mockRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
+func (m *mockRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage, timeout float32) (*proto_gen.KademliaMessage, error) {
 	// return a reponse in the opposite direction
 
 	// Make an arbitary rpc id and node ids
@@ -513,7 +513,7 @@ func (m *mockRPCSender) SendRPC(rpc string, address network.Address, kademliaMes
 
 type mockNoResponseRPCSender struct{}
 
-func (m *mockNoResponseRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
+func (m *mockNoResponseRPCSender) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage, timeout float32) (*proto_gen.KademliaMessage, error) {
 	return nil, fmt.Errorf("no response")
 }
 func (m *mockNoResponseRPCSender) SendRPC(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) error {

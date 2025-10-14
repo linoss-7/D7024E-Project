@@ -1,6 +1,8 @@
 package rpc_handlers
 
 import (
+	"time"
+
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
@@ -12,13 +14,15 @@ type StoreHandler struct {
 	IDataStorage common.IDataStorage
 	RpcSender    common.IRPCSender
 	SenderId     *utils.BitArray
+	Ttl          float32
 }
 
-func NewStoreHandler(rpcSender common.IRPCSender, dataStorage common.IDataStorage, senderId *utils.BitArray) *StoreHandler {
+func NewStoreHandler(rpcSender common.IRPCSender, dataStorage common.IDataStorage, senderId *utils.BitArray, ttl float32) *StoreHandler {
 	return &StoreHandler{
 		IDataStorage: dataStorage,
 		RpcSender:    rpcSender,
 		SenderId:     senderId,
+		Ttl:          ttl,
 	}
 }
 
@@ -33,7 +37,8 @@ func (fnh *StoreHandler) Handle(msg network.Message) error {
 	value := string(km.Body)
 
 	// Store the value in the data storage
-	key, err := fnh.IDataStorage.Store(common.DataObject{Data: value})
+	data := common.DataObject{Data: value, ExpirationDate: time.Now().Add(time.Duration(fnh.Ttl * float32(time.Second)))}
+	key, err := fnh.IDataStorage.Store(data)
 	if err != nil {
 		return err
 	}

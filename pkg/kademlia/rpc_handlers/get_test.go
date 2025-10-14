@@ -165,12 +165,12 @@ func (ms *MockStorage) FindValue(key *utils.BitArray) (string, error) {
 	return value.Data, nil
 }
 
-func (ms *MockStorage) FindValueInNetwork(key *utils.BitArray) (string, []common.NodeInfo, error) {
+func (ms *MockStorage) FindValueInNetwork(key *utils.BitArray) (string, []*common.NodeInfo, error) {
 	value, err := ms.FindValue(key)
-	var nodes []common.NodeInfo
+	var nodes []*common.NodeInfo
 	// Generate dummy nodes
 	for i := 0; i < 3; i++ {
-		nodes = append(nodes, common.NodeInfo{
+		nodes = append(nodes, &common.NodeInfo{
 			ID:   *utils.NewRandomBitArray(160),
 			IP:   fmt.Sprintf("node-%d", i+1),
 			Port: 8000,

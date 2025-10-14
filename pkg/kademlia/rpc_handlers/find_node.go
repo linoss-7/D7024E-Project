@@ -21,7 +21,7 @@ func NewFindNodeHandler(rpcSender common.IRPCSender, table *common.RoutingTable)
 }
 
 func (fnh *FindNodeHandler) Handle(msg network.Message) error {
-
+	//logrus.Infof("Node received find_node request from %s", msg.From.String())
 	// Unmarshal message to KademliaMessage
 
 	var km proto_gen.KademliaMessage

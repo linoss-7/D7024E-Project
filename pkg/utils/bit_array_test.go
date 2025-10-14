@@ -104,9 +104,9 @@ func TestBitArray_FromString(t *testing.T) {
 
 	if b.ToString() != "1011001" {
 		t.Errorf("FromString got %s, want 1011001", b.ToString())
-  }
+	}
 }
-  
+
 func TestFindClosestNodes(t *testing.T) {
 	data1 := []byte{0b00000000, 0b10000000}
 	data2 := []byte{0b00000000, 0b11111111}
@@ -128,5 +128,21 @@ func TestFindClosestNodes(t *testing.T) {
 
 	if !b1.CloserTo(*targetID, *b2) {
 		t.Errorf("b1 should be closer to targetID than b2")
+	}
+}
+
+// Test that ToBigInt returns the unsigned magnitude (non-negative).
+func TestBitArray_ToBigInt_Unsigned(t *testing.T) {
+	// 4-bit array; set MSB (index 0) so the bit-string is "1000".
+	b := NewBitArray(4)
+	b.Set(0, true) // MSB
+	// unsigned value should be 2^(4-1) = 8
+	got := b.ToBigInt()
+	want := big.NewInt(8)
+	if got.Cmp(want) != 0 {
+		t.Fatalf("ToBigInt unsigned: got %v, want %v", got, want)
+	}
+	if got.Sign() < 0 {
+		t.Fatalf("ToBigInt returned negative for an unsigned magnitude: %v", got)
 	}
 }

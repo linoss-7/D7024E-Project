@@ -12,13 +12,14 @@ import (
 
 // Node provides a unified abstraction for both sending and receiving messages
 type Node struct {
-	addr       network.Address
-	network    network.Network
-	connection network.Connection
-	handlers   map[string][]HandlerEntry
-	mu         sync.RWMutex
-	closed     bool
-	closeMu    sync.RWMutex
+	addr          network.Address
+	network       network.Network
+	connection    network.Connection
+	handlers      map[string][]HandlerEntry
+	firstHandlers map[string][]HandlerEntry
+	mu            sync.RWMutex
+	closed        bool
+	closeMu       sync.RWMutex
 }
 
 // MessageHandler is a function that processes incoming messages
@@ -37,10 +38,11 @@ func NewNode(network network.Network, addr network.Address) (*Node, error) {
 	}
 
 	return &Node{
-		addr:       addr,
-		network:    network,
-		connection: connection,
-		handlers:   make(map[string][]HandlerEntry),
+		addr:          addr,
+		network:       network,
+		connection:    connection,
+		handlers:      make(map[string][]HandlerEntry),
+		firstHandlers: make(map[string][]HandlerEntry),
 	}, nil
 }
 
@@ -69,6 +71,17 @@ func (n *Node) RemoveHandler(msgType string, id string) {
 			break
 		}
 	}
+}
+
+func (n *Node) HandleFirst(msgType string, handler MessageHandler) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	id := uuid.New().String()
+	n.firstHandlers[msgType] = append(n.firstHandlers[msgType], HandlerEntry{
+		ID:      id,
+		Handler: handler,
+	})
+	return id
 }
 
 // Start begins listening for incoming messages
@@ -105,33 +118,56 @@ func (n *Node) Start() {
 				}
 			}
 
+			// Copy the handlers slice for this msgType while holding the lock
+			// to avoid races if another goroutine removes or modifies handlers.
 			n.mu.RLock()
-			handler, exists := n.handlers[msgType]
+			origHandlers, exists := n.handlers[msgType]
+			handlersCopy := make([]HandlerEntry, len(origHandlers))
+			copy(handlersCopy, origHandlers)
+
+			// Copy first-handlers and default handlers under the same lock so we
+			// capture a consistent snapshot for this message.
+			origFirstHandlers := n.firstHandlers[msgType]
+			firstHandlersCopy := make([]HandlerEntry, len(origFirstHandlers))
+			copy(firstHandlersCopy, origFirstHandlers)
+
+			origDefaultHandlers := n.handlers["default"]
+			defaultHandlersCopy := make([]HandlerEntry, len(origDefaultHandlers))
+			copy(defaultHandlersCopy, origDefaultHandlers)
 			n.mu.RUnlock()
 
-			// Call all default handlers, even if specific handlers exist
-			n.mu.RLock()
-			defaultHandlers := n.handlers["default"]
-			n.mu.RUnlock()
-			if len(defaultHandlers) > 0 {
-				for _, h := range defaultHandlers {
-					//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
-					if err := h.Handler(msg); err != nil {
-						log.Printf("Handler error: %v", err)
+			// Dispatch: start a single goroutine per message that runs first-handlers
+			// and waits for them to finish, then starts the other handlers. This
+			// keeps the listener loop non-blocking while preserving the ordering
+			// guarantee (first-handlers run-before other handlers).
+			go func(m network.Message, fh []HandlerEntry, dh []HandlerEntry, oth []HandlerEntry, hasSpecific bool) {
+				// Run first-handlers concurrently then wait for completion.
+				if len(fh) > 0 {
+					var wg sync.WaitGroup
+					for _, h := range fh {
+						wg.Add(1)
+						go func(h HandlerEntry) {
+							defer wg.Done()
+							// Run handler; ignore returned error here. Handlers
+							// should handle their own errors/logging.
+							_ = h.Handler(m)
+						}(h)
+					}
+					wg.Wait()
+				}
+
+				// After first-handlers have completed, launch default handlers
+				// and any specific handlers without waiting for them. They are
+				// free to run concurrently and won't block the listener.
+				for _, h := range dh {
+					go h.Handler(m)
+				}
+				if hasSpecific {
+					for _, h := range oth {
+						go h.Handler(m)
 					}
 				}
-			}
-
-			// If specific handlers exist for this message type, call them
-			if exists {
-				for _, handler := range handler {
-					//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
-					if err := handler.Handler(msg); err != nil {
-						log.Printf("Handler error: %v", err)
-					}
-
-				}
-			}
+			}(msg, firstHandlersCopy, defaultHandlersCopy, handlersCopy, exists)
 		}
 	}()
 }

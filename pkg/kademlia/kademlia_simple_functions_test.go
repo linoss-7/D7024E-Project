@@ -15,7 +15,7 @@ func TestExist(t *testing.T) {
 	k := 20
 	alpha := 3
 
-	node, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160), k, alpha)
+	node, err := NewKademliaNode(net, network.Address{IP: "127.0.0.1", Port: 8000}, *utils.NewBitArray(160), k, alpha, 3600)
 	if err != nil {
 		t.Fatalf("Failed to create Node: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestStoreInNetwork(t *testing.T) {
 	valueToStore := "Hello, World!"
 
 	// Create a Kademlia node (Alice)
-	alice, err := NewKademliaNode(net, network.Address{IP: localIP, Port: 8000}, *utils.NewRandomBitArray(160), k, alpha)
+	alice, err := NewKademliaNode(net, network.Address{IP: localIP, Port: 8000}, *utils.NewRandomBitArray(160), k, alpha, 3600)
 	if err != nil {
 		t.Fatalf("Failed to create Alice: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestStoreInNetwork(t *testing.T) {
 	bobPort := 8001
 
 	// Create another Kademlia node (Bob)
-	bob, err := NewKademliaNode(net, network.Address{IP: localIP, Port: bobPort}, *bobId, k, alpha)
+	bob, err := NewKademliaNode(net, network.Address{IP: localIP, Port: bobPort}, *bobId, k, alpha, 3600)
 	if err != nil {
 		t.Fatalf("Failed to create Bob: %v", err)
 	}
@@ -70,18 +70,18 @@ func TestStoreInNetwork(t *testing.T) {
 	alice.StoreInNetwork(valueToStore)
 
 	/*
-	// Convert value to its corresponding key
-	valueKey := utils.ComputeHash(valueToStore, 160)
+		// Convert value to its corresponding key
+		valueKey := utils.ComputeHash(valueToStore, 160)
 
-	// Check if Bob has the value stored
-	value, err := bob.FindValue(valueKey)
-	if err != nil {
-		t.Fatalf("Bob failed to find the value: %v", err)
-	}
+		// Check if Bob has the value stored
+		value, err := bob.FindValue(valueKey)
+		if err != nil {
+			t.Fatalf("Bob failed to find the value: %v", err)
+		}
 
-	// Verify that Bob found the correct value
-	if value != valueToStore {
-		t.Fatalf("Bob found incorrect value: got %s, want %s", value, valueToStore)
-	}
+		// Verify that Bob found the correct value
+		if value != valueToStore {
+			t.Fatalf("Bob found incorrect value: got %s, want %s", value, valueToStore)
+		}
 	*/
 }

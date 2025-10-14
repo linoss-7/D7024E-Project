@@ -4,6 +4,7 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto" // go get google.golang.org/protobuf (install protobuf)
 )
 
@@ -21,10 +22,11 @@ func NewPingHandler(rpcSender common.IRPCSender, selfInfo common.NodeInfo) *Ping
 
 func (ph *PingHandler) Handle(msg network.Message) error {
 	// Echo reply with the same RPCId
-	//logrus.Infof("Node %s received ping from %s", ph.ID.ToString(), msg.From.String())
+	//logrus.Infof("Node %s received ping from %s", ph.SelfInfo.IP+":"+fmt.Sprintf("%d", ph.SelfInfo.Port), msg.From.IP+":"+fmt.Sprintf("%d", msg.From.Port))
 	var km proto_gen.KademliaMessage
 	payload := msg.Payload[5:] // Exclude "ping:" prefix
 	if err := proto.Unmarshal(payload, &km); err != nil {
+		logrus.Infof("Failed to unmarshal ping message: %v", err)
 		return err
 	}
 
@@ -36,6 +38,7 @@ func (ph *PingHandler) Handle(msg network.Message) error {
 
 	// Send response back to the requester
 	ph.RPCSender.SendRPC("reply", addr, replyMsg)
+	//logrus.Infof("Node %s replied to ping from %s", ph.SelfInfo.IP+":"+fmt.Sprintf("%d", ph.SelfInfo.Port), msg.From.IP+":"+fmt.Sprintf("%d", msg.From.Port))
 	return nil
 }
 

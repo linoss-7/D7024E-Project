@@ -33,15 +33,18 @@ func (fnh *PutHandler) Handle(msg network.Message) error {
 
 	value := string(km.Body)
 
+	//logrus.Printf("Node %s received put request from %s to store value: %s", fmt.Sprintf("%s:%d", msg.To.IP, msg.To.Port), fmt.Sprintf("%s:%d", msg.From.IP, msg.From.Port), value)
 	// Store the value using IDataStorage
 	key, err := fnh.IDataStorage.StoreInNetwork(value)
 	if err != nil {
 		return err
 	}
+	//logrus.Printf("Node %s stored value for key: %s", msg.To.IP+":"+string(rune(msg.To.Port)), key.ToString())
 
-	// Reply with the key where the value is stored
-
+	// Reply with the key where the value is stored. Use the same RPCId so
+	// the caller waiting in SendAndAwaitResponse can match the response.
 	response := common.DefaultKademliaMessage(*fnh.SenderId, key.ToBytes())
+	response.RPCId = km.RPCId
 
 	return fnh.RpcSender.SendRPC("reply", network.Address{IP: msg.From.IP, Port: msg.From.Port}, response)
 

@@ -20,17 +20,18 @@ type KademliaNode struct {
 	Node         *node.Node
 	ID           utils.BitArray
 	RoutingTable *common.RoutingTable
-	Values       map[*utils.BitArray][]common.DataObject
+	Values       map[string]common.DataObject
 	valueMutex   sync.RWMutex
-	republishers map[*utils.BitArray]chan bool
+	republishers map[string]chan bool
 	repubMutex   sync.RWMutex
-	refreshers   map[*utils.BitArray]chan bool
+	refreshers   map[string]chan bool
 	refreshMutex sync.RWMutex
 	k            int
 	alpha        int
+	ttl          float32
 }
 
-func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArray, k int, alpha int) (*KademliaNode, error) {
+func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArray, k int, alpha int, ttl float32) (*KademliaNode, error) {
 	// Create node (not a Kademlia node)
 	node, err := node.NewNode(net, addr)
 	if err != nil {
@@ -43,6 +44,7 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 		ID:    id,
 		k:     k,
 		alpha: alpha,
+		ttl:   ttl,
 	}, nil
 
 	// Register handlers for the node
@@ -56,13 +58,13 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 	rt := common.NewRoutingTable(kn, knInfo, k)
 
 	kn.RoutingTable = rt
-	kn.Values = make(map[*utils.BitArray][]common.DataObject)
+	kn.Values = make(map[string]common.DataObject)
 	kn.k = k
 	kn.alpha = alpha
 
 	pingHandler := rpc_handlers.NewPingHandler(kn, knInfo)
 	exitHandler := rpc_handlers.NewExitHandler(kn, kn, &knInfo.ID)
-	storeHandler := rpc_handlers.NewStoreHandler(kn, kn, &knInfo.ID)
+	storeHandler := rpc_handlers.NewStoreHandler(kn, kn, &knInfo.ID, ttl)
 	findValueHandler := rpc_handlers.NewFindValueHandler(kn, kn.RoutingTable, kn)
 	getHandler := rpc_handlers.NewGetHandler(kn, kn, &knInfo.ID)
 	findNodeHandler := rpc_handlers.NewFindNodeHandler(kn, rt)
@@ -77,10 +79,12 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 	kn.Node.Handle("put", putHandler.Handle)
 
 	// Register ping, find_value, find_node and reply to update routing table on any message
-	kn.Node.Handle("ping", kn.AddToContactsFromMsg)
-	kn.Node.Handle("find_value", kn.AddToContactsFromMsg)
-	kn.Node.Handle("find_node", kn.AddToContactsFromMsg)
-	kn.Node.Handle("reply", kn.AddToContactsFromMsg)
+	// Handle before to ensure new contacts are added before any other handler is run
+	kn.Node.HandleFirst("find_value", kn.AddToContactsFromMsg)
+	kn.Node.HandleFirst("find_node", kn.AddToContactsFromMsg)
+	kn.Node.HandleFirst("store", kn.AddToContactsFromMsg)
+	kn.Node.HandleFirst("ping", kn.AddToContactsFromMsg)
+	kn.Node.HandleFirst("reply", kn.AddToContactsFromMsg)
 
 	node.Start()
 
@@ -110,10 +114,12 @@ func (kn *KademliaNode) AddToContactsFromMsg(msg network.Message) error {
 	return nil
 }
 
-func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage) (*proto_gen.KademliaMessage, error) {
+func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address, kademliaMessage *proto_gen.KademliaMessage, timeout float32) (*proto_gen.KademliaMessage, error) {
 	// Send a message and block until a message with the same RPCId is received
-	responseCh := make(chan *proto_gen.KademliaMessage)
-	errCh := make(chan error)
+	// Use buffered channels to avoid blocking the listener goroutine if the
+	// handler fires before the waiter is ready.
+	responseCh := make(chan *proto_gen.KademliaMessage, 1)
+	errCh := make(chan error, 1)
 
 	// Create a new message handler for the response
 	handlerFunc := func(msg network.Message) error {
@@ -132,10 +138,13 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 		return nil
 	}
 
-	kn.Node.Handle("reply", handlerFunc)
+	id := kn.Node.Handle("reply", handlerFunc)
+	defer kn.Node.RemoveHandler("reply", id)
 
-	// Send message
-	kn.SendRPC(rpc, address, kademliaMessage)
+	// Send message and surface send errors immediately
+	if err := kn.SendRPC(rpc, address, kademliaMessage); err != nil {
+		return nil, fmt.Errorf("failed to send %s to %s: %v", rpc, address.String(), err)
+	}
 
 	//logrus.Infof("Node %s sent %s to %s, waiting for response...", kn.ID.ToString(), rpc, address.String())
 	select {
@@ -143,31 +152,58 @@ func (kn *KademliaNode) SendAndAwaitResponse(rpc string, address network.Address
 		return resp, nil
 	case err := <-errCh:
 		return nil, err
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Duration(timeout) * time.Second):
 		return nil, fmt.Errorf("timeout waiting for response")
 	}
 }
 
 func (kn *KademliaNode) FindValue(key *utils.BitArray) (string, error) {
-	// Check only local storage
+	// Check only local storage. We must not write (delete) while holding a read lock,
+	// so if we find an expired value we drop the read lock, acquire the write lock,
+	// re-check and then delete.
+
+	// First do a read-protected lookup
 	kn.valueMutex.RLock()
-	defer kn.valueMutex.RUnlock()
-	if values, exists := kn.Values[key]; exists && len(values) > 0 {
-		// Ensure the value is not expired
-		if values[0].ExpirationDate.After(time.Now()) {
-			return values[0].Data, nil
+	value, exists := kn.Values[key.ToString()]
+	if exists {
+		if value.ExpirationDate.After(time.Now()) {
+			// Still valid
+			data := value.Data
+			kn.valueMutex.RUnlock()
+			return data, nil
 		}
-		// Otherwise, remove expired value
-		delete(kn.Values, key)
+		// Expired, log
 	}
+	kn.valueMutex.RUnlock()
+
+	// If it existed but expired, remove it under write lock
+	if exists {
+		kn.valueMutex.Lock()
+		// Re-check to avoid TOCTOU: another goroutine may have updated the value
+		cur, ok := kn.Values[key.ToString()]
+		if ok {
+			if !cur.ExpirationDate.After(time.Now()) {
+				delete(kn.Values, key.ToString())
+			} else {
+				// Another goroutine refreshed it; return the fresh value
+				data := cur.Data
+				kn.valueMutex.Unlock()
+				return data, nil
+			}
+		}
+		kn.valueMutex.Unlock()
+	}
+
 	return "", nil
 }
 
-func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []common.NodeInfo, error) {
+func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []*common.NodeInfo, error) {
 
 	// Perform a lookup on the key
 
 	nodes, err := kn.LookUp(key)
+
+	//logrus.Infof("Node %s found %d nodes", kn.Node.Address().IP, len(nodes))
 
 	if err != nil {
 		return "", nil, err
@@ -180,9 +216,18 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []commo
 		go func(n *common.NodeInfo) {
 			// Create find_value message
 			findValueMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
-			resp, err := kn.SendAndAwaitResponse("find_value", network.Address{IP: n.IP, Port: n.Port}, findValueMsg)
+			resp, err := kn.SendAndAwaitResponse("find_value", network.Address{IP: n.IP, Port: n.Port}, findValueMsg, 5.0)
+			//logrus.Infof("Node %s received find_value response from %s", kn.ID.ToString(), n.ID.ToString())
 			if err != nil {
-				//logrus.Errorf("Error sending find_value to %s: %v", n.ID.ToString(), err)
+				//logrus.Errorf("Error sending find_value to %s: %v", n.IP, err)
+				resCh <- ""
+				return
+			}
+
+			// Check if body can be converted to NodeInfoMessageList
+			var nodeInfoList proto_gen.NodeInfoMessageList
+			if err := proto.Unmarshal(resp.Body, &nodeInfoList); err == nil {
+				//logrus.Errorf("Response was message list indicating no value found at %s: %v", n.IP, err)
 				resCh <- ""
 				return
 			}
@@ -193,12 +238,16 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []commo
 		}(nodes[i])
 	}
 
+	//logrus.Infof("Node %s sent find_value to %d nodes, waiting for responses...", kn.Node.Address().IP, len(nodes))
+
 	// Collect results
 	var results []string
 	for i := 0; i < len(nodes); i++ {
 		result := <-resCh
 		results = append(results, result)
 	}
+
+	//logrus.Infof("Node %s received %d responses for find_value", kn.Node.Address().IP, len(results))
 
 	// Return the non-empty result with the highest frequency
 	frequency := make(map[string]int)
@@ -218,21 +267,46 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []commo
 	}
 
 	if finalValue == "" {
-		return "", nil, fmt.Errorf("value not found in network")
+		// Not an error, just did not find node, return closest nodes
+		return "", nodes, nil
 	}
+
+	/*
+		// Log results
+		for v, f := range frequency {
+			logrus.Infof("Node %s found value '%s' with frequency %d", kn.Node.Address().IP, v, f)
+		}
+	*/
 
 	// Return the nodes that had the value
-	var storingNodes []common.NodeInfo
+	var storingNodes []*common.NodeInfo
 	for i, v := range results {
 		if v == finalValue {
-			storingNodes = append(storingNodes, *nodes[i])
+			storingNodes = append(storingNodes, nodes[i])
 		}
 	}
-
+	//logrus.Infof("Node %s found value stored at %d nodes", kn.Node.Address().IP, len(storingNodes))
 	return finalValue, storingNodes, nil
 }
 
 func (kn *KademliaNode) Join(node common.NodeInfo) error {
+	// If the provided node doesn't include an ID (e.g. from CLI/bootstrap config),
+	// attempt to learn it by sending a ping and reading the SenderId from the reply.
+	if node.ID.Size() == 0 {
+		addr := network.Address{IP: node.IP, Port: node.Port}
+		msg := common.DefaultKademliaMessage(kn.ID, nil)
+		resp, err := kn.SendAndAwaitResponse("ping", addr, msg, 5.0)
+		if err != nil {
+			return fmt.Errorf("failed to contact bootstrap node %s:%d: %w", node.IP, node.Port, err)
+		}
+		if resp == nil || len(resp.SenderId) == 0 {
+			return fmt.Errorf("bootstrap node %s:%d did not include an ID in reply", node.IP, node.Port)
+		}
+		// Convert bytes to BitArray and set on the NodeInfo
+		id := utils.NewBitArrayFromBytes(resp.SenderId, kn.ID.Size())
+		node.ID = *id
+	}
+
 	// Add contact to routing table
 	kn.RoutingTable.NewContact(node)
 
@@ -258,7 +332,7 @@ func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) 
 
 	if storedValue != "" {
 		kn.repubMutex.RLock()
-		kn.republishers[key] <- true
+		kn.republishers[key.ToString()] <- true
 		kn.repubMutex.RUnlock()
 		return key, nil
 	}
@@ -267,19 +341,15 @@ func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) 
 
 	// Add value to local storage
 	kn.valueMutex.Lock()
-	kn.Values[key] = append(kn.Values[key], value)
+	kn.Values[key.ToString()] = value
 	kn.valueMutex.Unlock()
 
 	// Start republisher
 
 	kn.StartRepublish(key, utils.NewRealTimeTicker(300*time.Second))
+	//logrus.Infof("Node %s stored value %s", kn.Node.Address().IP, value.Data)
 
 	return key, nil
-}
-
-func (kn *KademliaNode) Forget(id *utils.BitArray) error {
-	// Dummy implementation, always returns not implemented
-	return fmt.Errorf("not implemented")
 }
 
 func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
@@ -289,7 +359,7 @@ func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 
 	// Check that theres no already a refresher for the key
 	kn.refreshMutex.RLock()
-	if kn.refreshers[key] != nil {
+	if kn.refreshers[key.ToString()] != nil {
 		kn.refreshMutex.RUnlock()
 		return nil, fmt.Errorf("a refresher already exists for key %s", key.ToString())
 	}
@@ -303,6 +373,9 @@ func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 
 	nodes, err := kn.LookUp(key)
 
+	// Log the length of nodes
+	// logrus.Infof("Found %d nodes for key %s", len(nodes), key.ToString())
+
 	if err != nil {
 		return nil, err
 	}
@@ -312,8 +385,7 @@ func (kn *KademliaNode) StoreInNetwork(value string) (*utils.BitArray, error) {
 	for i := 0; i < len(nodes); i++ {
 		go func(n *common.NodeInfo) {
 			// Create store message
-			storeMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
-			storeMsg.Body = []byte(value)
+			storeMsg := common.DefaultKademliaMessage(kn.ID, []byte(value))
 			kn.SendRPC("store", network.Address{IP: n.IP, Port: n.Port}, storeMsg)
 		}(nodes[i])
 	}
@@ -325,7 +397,18 @@ func (kn *KademliaNode) Refresh(key *utils.BitArray, value string) error {
 
 	// Check the key in the routing table
 
-	nodes := kn.RoutingTable.FindClosest(*key)
+	nodes, err := kn.LookUp(key)
+
+	// Log the nodes found
+	/*
+		for i, n := range nodes {
+			logrus.Infof("Node %d: %s", i, n.ID.ToString())
+		}
+	*/
+
+	if err != nil {
+		return err
+	}
 
 	// Send store RPCs to all those nodes
 
@@ -352,7 +435,9 @@ func (kn *KademliaNode) SendRPC(rpc string, addr network.Address, kademliaMessag
 
 	// Send the marshalled message
 	//logrus.Infof("Sending message with RPC ID %x to %s", kademliaMessage.RPCId, addr.String())
-	kn.Node.Send(addr, rpc, marshalledMsg)
+	if err := kn.Node.Send(addr, rpc, marshalledMsg); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -370,9 +455,9 @@ func (kn *KademliaNode) StartRepublish(key *utils.BitArray, ticker utils.Ticker)
 	// Add the restart channel to the republishers map
 	kn.repubMutex.Lock()
 	if kn.republishers == nil {
-		kn.republishers = make(map[*utils.BitArray]chan bool)
+		kn.republishers = make(map[string]chan bool)
 	}
-	kn.republishers[key] = restartCh
+	kn.republishers[key.ToString()] = restartCh
 	kn.repubMutex.Unlock()
 
 	go func() {
@@ -416,9 +501,9 @@ func (kn *KademliaNode) StartRefresh(key *utils.BitArray, ticker utils.Ticker) c
 	// Add the exit channel to the refreshers map
 	kn.refreshMutex.Lock()
 	if kn.refreshers == nil {
-		kn.refreshers = make(map[*utils.BitArray]chan bool)
+		kn.refreshers = make(map[string]chan bool)
 	}
-	kn.refreshers[key] = exitCh
+	kn.refreshers[key.ToString()] = exitCh
 	kn.refreshMutex.Unlock()
 
 	go func() {
@@ -457,13 +542,13 @@ func (kn *KademliaNode) StartRefresh(key *utils.BitArray, ticker utils.Ticker) c
 
 func (kn *KademliaNode) StopRefresh(key *utils.BitArray) error {
 	kn.refreshMutex.Lock()
-	ch, exists := kn.refreshers[key]
+	ch, exists := kn.refreshers[key.ToString()]
 	if !exists {
 		// This is not an error, just means theres no refresher for the key
 		return nil
 	}
 	// Remove the entry from the map
-	delete(kn.refreshers, key)
+	delete(kn.refreshers, key.ToString())
 	kn.refreshMutex.Unlock()
 
 	close(ch)
@@ -473,8 +558,8 @@ func (kn *KademliaNode) StopRefresh(key *utils.BitArray) error {
 func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, error) {
 	// Configurable timeouts
 	const (
-		nodeTimeout   = 2 * time.Second  // Per-node query timeout
-		lookupTimeout = 30 * time.Second // Overall lookup timeout
+		nodeTimeout   = 30 * time.Second  // Per-node query timeout
+		lookupTimeout = 120 * time.Second // Overall lookup timeout
 	)
 
 	// Create context with overall timeout
@@ -534,7 +619,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 
 			// Create nodeinfo message for the request
 			nodeInfoMsg := &proto_gen.NodeInfoMessage{
-				ID:   n.ID.ToBytes(),
+				ID:   targetID.ToBytes(),
 				IP:   "",
 				Port: 0,
 			}
@@ -547,9 +632,11 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 			}
 
 			// Send find_node RPC
-			kMsg, err := kn.SendAndAwaitResponse("find_node", network.Address{IP: n.IP, Port: n.Port}, common.DefaultKademliaMessage(kn.ID, data))
+			//logrus.Infof("Sending find_node from %s to %s", kn.Node.Address().IP+":"+fmt.Sprintf("%d", kn.Node.Address().Port), n.IP+":"+fmt.Sprintf("%d", n.Port))
+			kMsg, err := kn.SendAndAwaitResponse("find_node", network.Address{IP: n.IP, Port: n.Port}, common.DefaultKademliaMessage(kn.ID, data), 5.0)
 			if err != nil {
 				resultsCh <- queryResult{from: n, nodes: nil, err: err}
+				//logrus.Infof("find_node to %s failed: %v", n.IP, err)
 				return
 			}
 
@@ -661,6 +748,17 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 
 	wg.Wait()
 	close(resultsCh)
+
+	// Log the number of visited nodes
+	//logrus.Infof("Visited %d nodes", len(probed))
+	/*
+		for _, n := range kClosestNodes {
+			// Log nodes and their distance to targetID
+			logrus.Infof("Node %s at distance %d", n.ID.ToString(), n.ID.Xor(*targetID).ToBigInt().Int64())
+		}
+	*/
+	// Log number of retrieved nodes
+	//logrus.Infof("Retrieved %d closest nodes", len(kClosestNodes))
 
 	return kClosestNodes, nil
 }
