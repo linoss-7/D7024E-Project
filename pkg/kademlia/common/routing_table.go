@@ -8,7 +8,6 @@ import (
 
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
-	"github.com/sirupsen/logrus"
 )
 
 type RoutingTable struct {
@@ -46,7 +45,7 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 	// construct a NodeInfo from config/CLI that doesn't include the remote ID.
 	// Calling Get() on an empty BitArray will panic, so bail out early.
 	if nodeInfo.ID.Size() == 0 {
-		logrus.Warnf("NewContact called with empty ID for %s:%d, ignoring", nodeInfo.IP, nodeInfo.Port)
+		//logrus.Warnf("NewContact called with empty ID for %s:%d, ignoring", nodeInfo.IP, nodeInfo.Port)
 		return
 	}
 	// Find the appropriate bucket for the new contact
@@ -114,7 +113,7 @@ func (rt *RoutingTable) NewContact(nodeInfo NodeInfo) {
 	_, err := rt.rpcSender.SendAndAwaitResponse("ping", *address, kademliaMessage, 2.0)
 
 	if err != nil {
-		logrus.Infof("Node %s did not respond to ping, replacing with new node", leastRecent.IP)
+		//logrus.Infof("Node %s did not respond to ping, replacing with new node", leastRecent.IP)
 		rt.bucketLock.Lock()
 		// Re-read the live bucket under lock and remove leastRecent by id if still present
 		live := rt.buckets[bucketIndex]

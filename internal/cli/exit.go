@@ -21,7 +21,6 @@ var ExitCmd = &cobra.Command{
 	Short: "Exit the Kademlia network",
 	Long:  "Exit the Kademlia network",
 	Run: func(cmd *cobra.Command, args []string) {
-		key := args[0]
 
 		net := network.NewUDPNetwork()
 
@@ -64,7 +63,7 @@ var ExitCmd = &cobra.Command{
 
 		// Send a get rpc to the node
 
-		msg := common.DefaultKademliaMessage(*id, []byte(key))
+		msg := common.DefaultKademliaMessage(*id, nil)
 
 		resp, err := newNode.SendAndAwaitResponse("exit", network.Address{IP: info.IP, Port: info.Port}, msg, 10.0)
 

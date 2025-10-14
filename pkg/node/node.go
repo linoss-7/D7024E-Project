@@ -124,42 +124,50 @@ func (n *Node) Start() {
 			origHandlers, exists := n.handlers[msgType]
 			handlersCopy := make([]HandlerEntry, len(origHandlers))
 			copy(handlersCopy, origHandlers)
-			n.mu.RUnlock()
 
-			// Call first handlers
-			// Copy first-handlers under lock then run them without holding the lock
-			n.mu.RLock()
-			origFirstHandlers, firstExists := n.firstHandlers[msgType]
+			// Copy first-handlers and default handlers under the same lock so we
+			// capture a consistent snapshot for this message.
+			origFirstHandlers := n.firstHandlers[msgType]
 			firstHandlersCopy := make([]HandlerEntry, len(origFirstHandlers))
 			copy(firstHandlersCopy, origFirstHandlers)
-			n.mu.RUnlock()
-			if firstExists {
-				for _, h := range firstHandlersCopy {
-					go h.Handler(msg)
-				}
-			}
 
-			// Call default handlers
-			//log.Printf("Node %s received message of type '%s' from %s", n.addr.String(), msgType, msg.From.String())
-			// Copy default handlers under lock then execute them
-			n.mu.RLock()
 			origDefaultHandlers := n.handlers["default"]
 			defaultHandlersCopy := make([]HandlerEntry, len(origDefaultHandlers))
 			copy(defaultHandlersCopy, origDefaultHandlers)
 			n.mu.RUnlock()
-			if len(defaultHandlersCopy) > 0 {
-				for _, h := range defaultHandlersCopy {
-					go h.Handler(msg)
-				}
-			}
 
-			// If specific handlers exist for this message type, call them
-			if exists {
-				// handlersCopy was created above when we copied handlers for this msgType
-				for _, h := range handlersCopy {
-					go h.Handler(msg)
+			// Dispatch: start a single goroutine per message that runs first-handlers
+			// and waits for them to finish, then starts the other handlers. This
+			// keeps the listener loop non-blocking while preserving the ordering
+			// guarantee (first-handlers run-before other handlers).
+			go func(m network.Message, fh []HandlerEntry, dh []HandlerEntry, oth []HandlerEntry, hasSpecific bool) {
+				// Run first-handlers concurrently then wait for completion.
+				if len(fh) > 0 {
+					var wg sync.WaitGroup
+					for _, h := range fh {
+						wg.Add(1)
+						go func(h HandlerEntry) {
+							defer wg.Done()
+							// Run handler; ignore returned error here. Handlers
+							// should handle their own errors/logging.
+							_ = h.Handler(m)
+						}(h)
+					}
+					wg.Wait()
 				}
-			}
+
+				// After first-handlers have completed, launch default handlers
+				// and any specific handlers without waiting for them. They are
+				// free to run concurrently and won't block the listener.
+				for _, h := range dh {
+					go h.Handler(m)
+				}
+				if hasSpecific {
+					for _, h := range oth {
+						go h.Handler(m)
+					}
+				}
+			}(msg, firstHandlersCopy, defaultHandlersCopy, handlersCopy, exists)
 		}
 	}()
 }

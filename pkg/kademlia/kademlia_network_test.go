@@ -239,12 +239,16 @@ func TestStoreGetInNetwork(t *testing.T) {
 	storingNodes := []*KademliaNode{}
 	for _, node := range nodes {
 		// Look into storage
-		node.valueMutex.RLock()
-		realVal, exists := node.Values[key.ToString()]
-		if exists {
-			logrus.Infof("Node %s has value %s for key %s in local storage", node.Node.Address().IP, realVal, key.ToString())
-		}
-		node.valueMutex.RUnlock()
+		/*
+			node.valueMutex.RLock()
+			//realVal, exists := node.Values[key.ToString()]
+
+				if exists {
+					logrus.Infof("Node %s has value %s for key %s in local storage", node.Node.Address().IP, realVal, key.ToString())
+				}
+
+			node.valueMutex.RUnlock()
+		*/
 
 		val, err := node.FindValue(key)
 		if err != nil {
@@ -252,7 +256,7 @@ func TestStoreGetInNetwork(t *testing.T) {
 		}
 		if val != "" {
 			// Log and verify
-			logrus.Infof("Node %s has value for key %s", node.Node.Address().IP, key.ToString())
+			//logrus.Infof("Node %s has value for key %s", node.Node.Address().IP, key.ToString())
 			if val != value {
 				t.Fatalf("Value mismatch on node: expected %s, got %s", value, val)
 			}
@@ -264,7 +268,7 @@ func TestStoreGetInNetwork(t *testing.T) {
 		t.Fatalf("Value not found on any node")
 	}
 	// Log the key we are looking for
-	logrus.Infof("Looking for key: %s", key.ToString())
+	//logrus.Infof("Looking for key: %s", key.ToString())
 
 	// Perform a lookup for the key and ensure that the same nodes are returned as storing nodes
 	lookupNode := nodes[rand.Intn(numNodes)]

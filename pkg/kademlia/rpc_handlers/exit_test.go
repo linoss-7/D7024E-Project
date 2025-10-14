@@ -2,6 +2,7 @@ package rpc_handlers
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
@@ -11,7 +12,6 @@ import (
 )
 
 func TestExitHandler_ExitNode(t *testing.T) {
-	return
 	// Test exit handler on mock process
 	process := &MockProcess{Closed: false}
 
@@ -32,6 +32,8 @@ func TestExitHandler_ExitNode(t *testing.T) {
 		t.Fatalf("Failed to marshal KademliaMessage: %v", err)
 	}
 
+	payload = append([]byte("exit:"), payload...) // Add prefix
+
 	// Create exit message
 	msg := network.Message{
 		From:    network.Address{IP: "localhost", Port: 9000},
@@ -48,19 +50,28 @@ func TestExitHandler_ExitNode(t *testing.T) {
 	}
 
 	// Check if node is closed
-	if !process.Closed {
+	if !process.IsClosed() {
 		t.Fatalf("Expected process to be closed")
 	}
 }
 
 type MockProcess struct {
 	Closed bool
+	cMutex sync.RWMutex
 }
 
 func (mp *MockProcess) Exit() error {
+	mp.cMutex.Lock()
+	defer mp.cMutex.Unlock()
 	if mp.Closed {
 		return fmt.Errorf("Process already closed")
 	}
 	mp.Closed = true
 	return nil
+}
+
+func (mp *MockProcess) IsClosed() bool {
+	mp.cMutex.RLock()
+	defer mp.cMutex.RUnlock()
+	return mp.Closed
 }

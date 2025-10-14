@@ -5,7 +5,6 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/network"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -30,14 +29,14 @@ func (fnh *GetHandler) Handle(msg network.Message) error {
 		return err
 	}
 
-	logrus.Printf("Node %s received get request from %s for key: %x", msg.To.IP+":"+string(rune(msg.To.Port)), msg.From.IP+":"+string(rune(msg.From.Port)), km.Body)
+	//logrus.Printf("Node %s received get request from %s for key: %x", msg.To.IP+":"+string(rune(msg.To.Port)), msg.From.IP+":"+string(rune(msg.From.Port)), km.Body)
 	// Extract the key from the body
 	key := km.Body
 
 	// Call IDataStorage to retrieve the value
 	value, nodes, err := fnh.IDataStorage.FindValueInNetwork(utils.NewBitArrayFromBytes(key, 160))
 	if err != nil {
-		logrus.Errorf("Node %s failed to find value for key: %x, error: %v", msg.To.IP+":"+string(rune(msg.To.Port)), key, err)
+		//logrus.Errorf("Node %s failed to find value for key: %x, error: %v", msg.To.IP+":"+string(rune(msg.To.Port)), key, err)
 		return err
 	}
 
@@ -63,7 +62,7 @@ func (fnh *GetHandler) Handle(msg network.Message) error {
 	// Create a response message
 	response := common.DefaultKademliaMessage(*fnh.SenderId, body)
 	response.RPCId = km.RPCId
-	logrus.Printf("Node %s replying to get request from %s with value: %s", msg.To.IP+":"+string(rune(msg.To.Port)), msg.From.IP+":"+string(rune(msg.From.Port)), value)
+	//logrus.Printf("Node %s replying to get request from %s with value: %s", msg.To.IP+":"+string(rune(msg.To.Port)), msg.From.IP+":"+string(rune(msg.From.Port)), value)
 
 	// Send the response back to the requester
 	return fnh.RpcSender.SendRPC("reply", network.Address{IP: msg.From.IP, Port: msg.From.Port}, response)

@@ -13,7 +13,6 @@ import (
 	"github.com/linoss-7/D7024E-Project/pkg/node"
 	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -204,7 +203,7 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []*comm
 
 	nodes, err := kn.LookUp(key)
 
-	logrus.Infof("Node %s found %d nodes", kn.Node.Address().IP, len(nodes))
+	//logrus.Infof("Node %s found %d nodes", kn.Node.Address().IP, len(nodes))
 
 	if err != nil {
 		return "", nil, err
@@ -218,9 +217,9 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []*comm
 			// Create find_value message
 			findValueMsg := common.DefaultKademliaMessage(kn.ID, key.ToBytes())
 			resp, err := kn.SendAndAwaitResponse("find_value", network.Address{IP: n.IP, Port: n.Port}, findValueMsg, 5.0)
-			logrus.Infof("Node %s received find_value response from %s", kn.ID.ToString(), n.ID.ToString())
+			//logrus.Infof("Node %s received find_value response from %s", kn.ID.ToString(), n.ID.ToString())
 			if err != nil {
-				logrus.Errorf("Error sending find_value to %s: %v", n.IP, err)
+				//logrus.Errorf("Error sending find_value to %s: %v", n.IP, err)
 				resCh <- ""
 				return
 			}
@@ -228,7 +227,7 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []*comm
 			// Check if body can be converted to NodeInfoMessageList
 			var nodeInfoList proto_gen.NodeInfoMessageList
 			if err := proto.Unmarshal(resp.Body, &nodeInfoList); err == nil {
-				logrus.Errorf("Response was message list indicating no value found at %s: %v", n.IP, err)
+				//logrus.Errorf("Response was message list indicating no value found at %s: %v", n.IP, err)
 				resCh <- ""
 				return
 			}
@@ -239,7 +238,7 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []*comm
 		}(nodes[i])
 	}
 
-	logrus.Infof("Node %s sent find_value to %d nodes, waiting for responses...", kn.Node.Address().IP, len(nodes))
+	//logrus.Infof("Node %s sent find_value to %d nodes, waiting for responses...", kn.Node.Address().IP, len(nodes))
 
 	// Collect results
 	var results []string
@@ -248,7 +247,7 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []*comm
 		results = append(results, result)
 	}
 
-	logrus.Infof("Node %s received %d responses for find_value", kn.Node.Address().IP, len(results))
+	//logrus.Infof("Node %s received %d responses for find_value", kn.Node.Address().IP, len(results))
 
 	// Return the non-empty result with the highest frequency
 	frequency := make(map[string]int)
@@ -272,10 +271,12 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []*comm
 		return "", nodes, nil
 	}
 
-	// Log results
-	for v, f := range frequency {
-		logrus.Infof("Node %s found value '%s' with frequency %d", kn.Node.Address().IP, v, f)
-	}
+	/*
+		// Log results
+		for v, f := range frequency {
+			logrus.Infof("Node %s found value '%s' with frequency %d", kn.Node.Address().IP, v, f)
+		}
+	*/
 
 	// Return the nodes that had the value
 	var storingNodes []*common.NodeInfo
@@ -284,7 +285,7 @@ func (kn *KademliaNode) FindValueInNetwork(key *utils.BitArray) (string, []*comm
 			storingNodes = append(storingNodes, nodes[i])
 		}
 	}
-	logrus.Infof("Node %s found value stored at %d nodes", kn.Node.Address().IP, len(storingNodes))
+	//logrus.Infof("Node %s found value stored at %d nodes", kn.Node.Address().IP, len(storingNodes))
 	return finalValue, storingNodes, nil
 }
 
@@ -346,7 +347,7 @@ func (kn *KademliaNode) Store(value common.DataObject) (*utils.BitArray, error) 
 	// Start republisher
 
 	kn.StartRepublish(key, utils.NewRealTimeTicker(300*time.Second))
-	logrus.Infof("Node %s stored value %s", kn.Node.Address().IP, value.Data)
+	//logrus.Infof("Node %s stored value %s", kn.Node.Address().IP, value.Data)
 
 	return key, nil
 }
@@ -399,9 +400,11 @@ func (kn *KademliaNode) Refresh(key *utils.BitArray, value string) error {
 	nodes, err := kn.LookUp(key)
 
 	// Log the nodes found
-	for i, n := range nodes {
-		logrus.Infof("Node %d: %s", i, n.ID.ToString())
-	}
+	/*
+		for i, n := range nodes {
+			logrus.Infof("Node %d: %s", i, n.ID.ToString())
+		}
+	*/
 
 	if err != nil {
 		return err
@@ -633,7 +636,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 			kMsg, err := kn.SendAndAwaitResponse("find_node", network.Address{IP: n.IP, Port: n.Port}, common.DefaultKademliaMessage(kn.ID, data), 5.0)
 			if err != nil {
 				resultsCh <- queryResult{from: n, nodes: nil, err: err}
-				logrus.Infof("find_node to %s failed: %v", n.IP, err)
+				//logrus.Infof("find_node to %s failed: %v", n.IP, err)
 				return
 			}
 
@@ -704,7 +707,7 @@ func (kn *KademliaNode) LookUp(targetID *utils.BitArray) ([]*common.NodeInfo, er
 			inflight--
 
 			if result.err != nil || result.nodes == nil {
-				logrus.Errorf("Error: %v", result.err)
+				//logrus.Errorf("Error: %v", result.err)
 				continue // failed or timed out node
 			}
 
