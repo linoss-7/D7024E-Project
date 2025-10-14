@@ -167,11 +167,14 @@ func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {
 
 	bucketIndex := 159 - diffBit
 
-	// Add all nodes from the closest bucket
+	// Add all nodes from the closest bucket. Make local copies before
+	// taking addresses so callers don't get pointers into the live
+	// bucket backing array (which can be replaced concurrently).
 	rt.bucketLock.RLock()
 	if bucketIndex < len(rt.buckets) {
 		for i := range rt.buckets[bucketIndex] {
-			closest = append(closest, &rt.buckets[bucketIndex][i])
+			ni := rt.buckets[bucketIndex][i]
+			closest = append(closest, &ni)
 		}
 	}
 	rt.bucketLock.RUnlock()
@@ -193,8 +196,8 @@ func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {
 			idx := bucketIndex - bucketOffset
 			rt.bucketLock.RLock()
 			for i := range rt.buckets[idx] {
-				// take address of the slice element directly (avoid loop-var address)
-				otherBucketNodes = append(otherBucketNodes, &rt.buckets[idx][i])
+				ni := rt.buckets[idx][i]
+				otherBucketNodes = append(otherBucketNodes, &ni)
 				if len(otherBucketNodes) >= remaining {
 					break
 				}
@@ -206,7 +209,8 @@ func (rt *RoutingTable) FindClosest(targetID utils.BitArray) []*NodeInfo {
 			idx := bucketIndex + bucketOffset
 			rt.bucketLock.RLock()
 			for i := range rt.buckets[idx] {
-				otherBucketNodes = append(otherBucketNodes, &rt.buckets[idx][i])
+				ni := rt.buckets[idx][i]
+				otherBucketNodes = append(otherBucketNodes, &ni)
 				if len(otherBucketNodes) >= remaining {
 					break
 				}

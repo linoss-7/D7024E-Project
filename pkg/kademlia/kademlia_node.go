@@ -83,8 +83,8 @@ func NewKademliaNode(net network.Network, addr network.Address, id utils.BitArra
 	kn.Node.HandleFirst("find_value", kn.AddToContactsFromMsg)
 	kn.Node.HandleFirst("find_node", kn.AddToContactsFromMsg)
 	kn.Node.HandleFirst("store", kn.AddToContactsFromMsg)
-	kn.Node.HandleFirst("ping", kn.AddToContactsFromMsg)
-	kn.Node.HandleFirst("reply", kn.AddToContactsFromMsg)
+	//kn.Node.HandleFirst("ping", kn.AddToContactsFromMsg)
+	//kn.Node.HandleFirst("reply", kn.AddToContactsFromMsg)
 
 	node.Start()
 

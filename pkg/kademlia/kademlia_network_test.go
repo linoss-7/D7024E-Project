@@ -6,17 +6,14 @@ import (
 	"math/rand"
 	"os"
 	"runtime/pprof"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/linoss-7/D7024E-Project/pkg/kademlia/common"
 	"github.com/linoss-7/D7024E-Project/pkg/network"
-	"github.com/linoss-7/D7024E-Project/pkg/proto_gen"
 	"github.com/linoss-7/D7024E-Project/pkg/utils"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 )
 
 func LargeKademliaNetworkTest(numNodes int, dropRate float64, k int, alpha int) error {
@@ -56,11 +53,17 @@ func LargeKademliaNetworkTest(numNodes int, dropRate float64, k int, alpha int) 
 			ID:   joinNode.ID,
 		}
 		wg.Add(1)
-		go func(i int) {
+		// pass joinNodeInfo into the goroutine to avoid capturing the loop variable
+		go func(i int, ji common.NodeInfo) {
 			defer wg.Done()
-			errCh <- nodes[i].Join(joinNodeInfo)
-			logrus.Infof("Node %d joined the network via node with ID %d", i, joinNodeInfo.ID.ToBigInt())
-		}(i)
+			errCh <- nodes[i].Join(ji)
+			// avoid dereferencing nil by using the passed-in ji
+			if ji.ID.Size() > 0 {
+				logrus.Infof("Node %d joined the network via node with ID %d", i, ji.ID.ToBigInt())
+			} else {
+				logrus.Infof("Node %d joined the network via node with empty ID", i)
+			}
+		}(i, joinNodeInfo)
 		//logrus.Infof("Node %d joined the network via node with ID %d", i, joinNodeInfo.ID.ToBigInt())
 	}
 
@@ -99,8 +102,16 @@ func LargeKademliaNetworkTest(numNodes int, dropRate float64, k int, alpha int) 
 			defer storeWg.Done()
 			// Generate random string of length 30
 			value := RandomString(30)
-
+			// pick a random storing node and be defensive in case it's nil
+			if numNodes == 0 {
+				storeErrCh <- fmt.Errorf("no nodes available for storing")
+				return
+			}
 			storingNode := nodes[rand.Intn(numNodes)]
+			if storingNode == nil {
+				storeErrCh <- fmt.Errorf("selected storing node is nil")
+				return
+			}
 			_, err := storingNode.StoreInNetwork(value)
 			if err != nil {
 				storeErrCh <- fmt.Errorf("Failed to store value in network: %v", err)
@@ -141,38 +152,40 @@ func LargeKademliaNetworkTest(numNodes int, dropRate float64, k int, alpha int) 
 		go func(value string) {
 			defer getWg.Done()
 
+			if numNodes == 0 {
+				getErrCh <- fmt.Errorf("no nodes available for retrieving")
+				return
+			}
 			retrievingNode := nodes[rand.Intn(numNodes)]
+			if retrievingNode == nil {
+				getErrCh <- fmt.Errorf("selected retrieving node is nil")
+				return
+			}
 
 			key := utils.ComputeHash(value, 160)
 
 			retrievedValue, _, err := retrievingNode.FindValueInNetwork(key)
+			logrus.Infof("Retrieving value for key %s from node %s", key.ToString(), retrievingNode.ID.ToString())
 
 			if err != nil {
 				getErrCh <- fmt.Errorf("Failed to retrieve value from network: %v", err)
 				return
 			}
 
-			// Check if response can be marshalled to ValueAndNodesMessage
-			vnm := &proto_gen.ValueAndNodesMessage{}
-			err = proto.Unmarshal([]byte(retrievedValue), vnm)
-			if err == nil {
-				// Successfully unmarshalled, this means value was not found
-				nodesStrings := []string{}
-				for _, n := range vnm.Nodes.Nodes {
-					nodesStrings = append(nodesStrings, fmt.Sprintf("%s:%d", n.IP, n.Port))
-				}
-				getErrCh <- fmt.Errorf("Value not found in network, closest nodes are: %s", strings.Join(nodesStrings, ", "))
+			if retrievedValue == "" {
+				getErrCh <- fmt.Errorf("retrieved empty value for key")
 				return
-
 			}
 
 			if retrievedValue != value {
 				getErrCh <- fmt.Errorf("Retrieved value does not match stored value. Got %s, expected %s", retrievedValue, value)
+				return
 			}
 		}(value)
 	}
 
 	getWg.Wait()
+	logrus.Infof("All values retrieved from the network")
 	close(getErrCh)
 
 	// Drain get errors, if any occur, propagate
@@ -498,10 +511,22 @@ func TestProfileLargeKademliaNetwork(t *testing.T) {
 	}
 }
 func TestLargeKademliaNetwork(t *testing.T) {
-	return                                             //Disable large test for now
-	err := LargeKademliaNetworkTest(1000, 0.02, 10, 5) // 100 nodes, 20% drop rate, k=10, alpha=5
+	//return                                             //Disable large test for now
+	err := LargeKademliaNetworkTest(1000, 0.2, 10, 5) // 100 nodes, 20% drop rate, k=10, alpha=5
 	if err != nil {
 		t.Fatalf("LargeKademliaNetworkTest failed: %v", err)
+	}
+}
+
+// Smoke test: smaller workload for quicker iteration when debugging retrieval hangs
+func TestLargeKademliaNetwork_Smoke(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping smoke test in short mode")
+	}
+	// Use fewer nodes to speed up reproduction while still stressing concurrency
+	err := LargeKademliaNetworkTest(200, 0.02, 10, 5)
+	if err != nil {
+		t.Fatalf("LargeKademliaNetworkTest (smoke) failed: %v", err)
 	}
 }
 
@@ -521,7 +546,7 @@ func ToSciNot(n big.Int) string {
 		return s
 	}
 	if len(s) > 3 {
-		return fmt.Sprintf("%s %s", s[:3], "e"+fmt.Sprint(exponent))
+		return fmt.Sprintf("%s %s", s[:1]+"."+s[1:3], "e"+fmt.Sprint(exponent))
 	}
 	return s
 }
